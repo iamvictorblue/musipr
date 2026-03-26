@@ -1,0 +1,14 @@
+{
+  "name": "@musipr/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "echo config package",
+    "lint": "echo config package"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

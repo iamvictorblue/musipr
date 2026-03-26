@@ -1,0 +1,381 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  LISTENER
+  ARTIST
+  VERIFIED_ARTIST
+  ADMIN
+}
+
+enum TrackVisibility {
+  DRAFT
+  SCHEDULED
+  PUBLIC
+  PRIVATE
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ModerationStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportType {
+  COPYRIGHT
+  TRADEMARK
+  HARASSMENT
+  OTHER
+}
+
+enum MerchCategory {
+  SHIRT
+  HOODIE
+  VINYL
+  DIGITAL
+  TICKETS
+  OTHER
+}
+
+enum JobType {
+  AUDIO_TRANSCODE
+  SCHEDULED_PUBLISH
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model User {
+  id                  String      @id @default(cuid())
+  email               String      @unique
+  passwordHash        String
+  role                UserRole    @default(LISTENER)
+  isSuspended         Boolean     @default(false)
+  termsAcceptedAt     DateTime?
+  refreshTokenVersion Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  deletedAt           DateTime?
+  artistProfile       ArtistProfile?
+  comments            Comment[]
+  likes               Like[]
+  follows             Follow[]    @relation("FollowFan")
+  playlists           Playlist[]
+  savedTracks         SavedTrack[]
+  savedPlaylists      SavedPlaylist[]
+  notifications       Notification[]
+}
+
+model ArtistProfile {
+  id                    String         @id @default(cuid())
+  userId                 String         @unique
+  artistName             String
+  legalName              String?
+  town                   String?
+  bio                    String?
+  profilePhotoUrl        String?
+  coverImageUrl          String?
+  socialLinks            Json?
+  genres                 Genre[]
+  monthlyListeners       Int            @default(0)
+  followerCount          Int            @default(0)
+  stripeAccountId        String?
+  estimatedRevenueCents  Int            @default(0)
+  merchClicks            Int            @default(0)
+  ticketClicks           Int            @default(0)
+  strikeCount            Int            @default(0)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  deletedAt              DateTime?
+  user                   User           @relation(fields: [userId], references: [id])
+  verificationRequests   VerificationRequest[]
+  tracks                 Track[]
+  playlists              Playlist[]
+  releases               Release[]
+  events                 Event[]
+  merchItems             MerchItem[]
+  strikes                ArtistStrike[]
+}
+
+model VerificationRequest {
+  id                     String             @id @default(cuid())
+  artistProfileId         String
+  status                 VerificationStatus @default(PENDING)
+  phone                  String?
+  governmentIdImageUrl   String
+  selfieImageUrl         String
+  rightsConfirmed        Boolean
+  termsAccepted          Boolean
+  adminNotes             String?
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  artistProfile          ArtistProfile      @relation(fields: [artistProfileId], references: [id])
+}
+
+model Track {
+  id                     String         @id @default(cuid())
+  artistProfileId        String
+  title                  String
+  description            String?
+  artworkUrl             String?
+  durationSec            Int            @default(0)
+  waveformPeaks          Json?
+  credits                String?
+  lyrics                 String?
+  releaseDate            DateTime?
+  visibility             TrackVisibility @default(DRAFT)
+  isDisabled             Boolean        @default(false)
+  disabledReason         String?
+  ownershipConfirmed     Boolean        @default(false)
+  genreId                String?
+  playCount              Int            @default(0)
+  likeCount              Int            @default(0)
+  repostCount            Int            @default(0)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  deletedAt              DateTime?
+  artistProfile          ArtistProfile  @relation(fields: [artistProfileId], references: [id])
+  genre                  Genre?         @relation(fields: [genreId], references: [id])
+  tags                   Tag[]
+  files                  TrackFile[]
+  comments               Comment[]
+  likes                  Like[]
+  playlistTracks         PlaylistTrack[]
+  release                Release?
+  reports                InfringementReport[]
+  savedBy                SavedTrack[]
+}
+
+model TrackFile {
+  id                    String   @id @default(cuid())
+  trackId                String
+  originalPath           String
+  streamPath             String?
+  hlsManifestPath        String?
+  mimeType               String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  track                  Track    @relation(fields: [trackId], references: [id])
+}
+
+model Comment {
+  id                    String   @id @default(cuid())
+  trackId                String
+  userId                 String
+  body                   String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  track                  Track    @relation(fields: [trackId], references: [id])
+  user                   User     @relation(fields: [userId], references: [id])
+}
+
+model Like {
+  id                    String   @id @default(cuid())
+  trackId                String
+  userId                 String
+  createdAt              DateTime @default(now())
+  track                  Track    @relation(fields: [trackId], references: [id])
+  user                   User     @relation(fields: [userId], references: [id])
+
+  @@unique([trackId, userId])
+}
+
+model Follow {
+  id                    String   @id @default(cuid())
+  fanUserId             String
+  artistProfileId       String
+  createdAt             DateTime @default(now())
+  fan                   User     @relation("FollowFan", fields: [fanUserId], references: [id])
+  artist                ArtistProfile @relation(fields: [artistProfileId], references: [id])
+
+  @@unique([fanUserId, artistProfileId])
+}
+
+model Playlist {
+  id                    String   @id @default(cuid())
+  title                 String
+  description           String?
+  coverUrl              String?
+  moodTags              String[]
+  isEditorial           Boolean @default(false)
+  ownerUserId           String?
+  ownerArtistId         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  ownerUser             User?    @relation(fields: [ownerUserId], references: [id])
+  ownerArtist           ArtistProfile? @relation(fields: [ownerArtistId], references: [id])
+  tracks                PlaylistTrack[]
+  savedBy               SavedPlaylist[]
+}
+
+model PlaylistTrack {
+  id                    String   @id @default(cuid())
+  playlistId            String
+  trackId               String
+  position              Int
+  createdAt             DateTime @default(now())
+  playlist              Playlist @relation(fields: [playlistId], references: [id])
+  track                 Track    @relation(fields: [trackId], references: [id])
+
+  @@unique([playlistId, trackId])
+}
+
+model Release {
+  id                    String   @id @default(cuid())
+  artistProfileId       String
+  trackId               String   @unique
+  releaseAt             DateTime
+  isPublished           Boolean  @default(false)
+  notifyCount           Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  artistProfile         ArtistProfile @relation(fields: [artistProfileId], references: [id])
+  track                 Track    @relation(fields: [trackId], references: [id])
+}
+
+model Event {
+  id                    String   @id @default(cuid())
+  artistProfileId       String
+  title                 String
+  venue                 String
+  town                  String
+  startsAt              DateTime
+  description           String?
+  ticketLink            String?
+  coverImageUrl         String?
+  isTour                Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  artistProfile         ArtistProfile @relation(fields: [artistProfileId], references: [id])
+}
+
+model MerchItem {
+  id                    String   @id @default(cuid())
+  artistProfileId       String
+  title                 String
+  description           String?
+  priceCents            Int
+  imageUrl              String?
+  purchaseLink          String?
+  category              MerchCategory @default(OTHER)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  artistProfile         ArtistProfile @relation(fields: [artistProfileId], references: [id])
+}
+
+model InfringementReport {
+  id                    String   @id @default(cuid())
+  trackId               String
+  reporterEmail         String
+  reportType            ReportType @default(COPYRIGHT)
+  description           String
+  status                ModerationStatus @default(OPEN)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  track                 Track    @relation(fields: [trackId], references: [id])
+  actions               ModerationAction[]
+}
+
+model ModerationAction {
+  id                    String   @id @default(cuid())
+  reportId              String
+  adminUserId           String
+  action                String
+  notes                 String?
+  createdAt             DateTime @default(now())
+  report                InfringementReport @relation(fields: [reportId], references: [id])
+}
+
+model ArtistStrike {
+  id                    String   @id @default(cuid())
+  artistProfileId       String
+  reportId              String?
+  reason                String
+  issuedBy              String
+  createdAt             DateTime @default(now())
+  artistProfile         ArtistProfile @relation(fields: [artistProfileId], references: [id])
+}
+
+model Notification {
+  id                    String   @id @default(cuid())
+  userId                String
+  title                 String
+  body                  String
+  isRead                Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id                    String   @id @default(cuid())
+  actorUserId           String?
+  entity                String
+  entityId              String
+  action                String
+  metadata              Json?
+  createdAt             DateTime @default(now())
+}
+
+model Genre {
+  id                    String   @id @default(cuid())
+  name                  String   @unique
+  tracks                Track[]
+  artistProfiles        ArtistProfile[]
+}
+
+model Tag {
+  id                    String   @id @default(cuid())
+  name                  String   @unique
+  tracks                Track[]
+}
+
+model SavedTrack {
+  id                    String   @id @default(cuid())
+  userId                String
+  trackId               String
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id])
+  track                 Track    @relation(fields: [trackId], references: [id])
+  @@unique([userId, trackId])
+}
+
+model SavedPlaylist {
+  id                    String   @id @default(cuid())
+  userId                String
+  playlistId            String
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id])
+  playlist              Playlist @relation(fields: [playlistId], references: [id])
+  @@unique([userId, playlistId])
+}
+
+model Job {
+  id                    String   @id @default(cuid())
+  type                  JobType
+  status                JobStatus @default(PENDING)
+  payload               Json
+  attempts              Int      @default(0)
+  lastError             String?
+  runAt                 DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
