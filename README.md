@@ -27,7 +27,14 @@ Production-minded MVP scaffold for a Puerto Rico-focused streaming platform.
    cp apps/api/.env.example apps/api/.env
    cp apps/web/.env.example apps/web/.env
    ```
-3. Start PostgreSQL and set `DATABASE_URL`.
+3. Start PostgreSQL:
+   ```bash
+   npm run db:up
+   ```
+   The default API `DATABASE_URL` already points to the compose database:
+   ```bash
+   postgresql://postgres:postgres@localhost:5432/musipr
+   ```
 4. Generate prisma client + migrate + seed:
    ```bash
    npm run prisma:generate -w apps/api
@@ -60,3 +67,4 @@ Production-minded MVP scaffold for a Puerto Rico-focused streaming platform.
 - This is an MVP scaffold with realistic structure and representative UX.
 - Audio transcoding worker uses FFmpeg command scaffolding and is job-backed via DB.
 - Stripe monetization is scaffolded at data/API level for future expansion.
+- PostgreSQL can be started with `npm run db:up` and stopped with `npm run db:down`.

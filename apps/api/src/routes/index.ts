@@ -5,6 +5,11 @@ import trackRoutes from './track.routes.js';
 import uploadRoutes from './upload.routes.js';
 import discoveryRoutes from './discovery.routes.js';
 import adminRoutes from './admin.routes.js';
+import artistRoutes from './artists.routes.js';
+import playlistRoutes from './playlists.routes.js';
+import releaseRoutes from './releases.routes.js';
+import eventRoutes from './events.routes.js';
+import merchRoutes from './merch.routes.js';
 
 const router = Router();
 
@@ -15,11 +20,11 @@ router.use('/uploads', uploadRoutes);
 router.use('/discovery', discoveryRoutes);
 router.use('/admin', adminRoutes);
 router.use('/users', Router());
-router.use('/artists', Router());
-router.use('/playlists', Router());
-router.use('/releases', Router());
-router.use('/events', Router());
-router.use('/merch', Router());
+router.use('/artists', artistRoutes);
+router.use('/playlists', playlistRoutes);
+router.use('/releases', releaseRoutes);
+router.use('/events', eventRoutes);
+router.use('/merch', merchRoutes);
 router.use('/reports', Router());
 
 export default router;

@@ -4,6 +4,11 @@ import { ApiError } from '../utils/errors.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 import { Role } from '../middleware/auth.js';
 
+function sanitizeUser<T extends { passwordHash: string; refreshTokenVersion: number }>(user: T) {
+  const { passwordHash: _passwordHash, refreshTokenVersion: _refreshTokenVersion, ...safeUser } = user;
+  return safeUser;
+}
+
 export async function signup(input: { email: string; password: string; role?: Role; termsAccepted?: boolean }) {
   const exists = await prisma.user.findUnique({ where: { email: input.email } });
   if (exists) throw new ApiError(400, 'Email already in use');
@@ -18,7 +23,7 @@ export async function signup(input: { email: string; password: string; role?: Ro
   });
 
   const payload = { sub: user.id, role: user.role, tokenVersion: user.refreshTokenVersion };
-  return { accessToken: signAccessToken(payload), refreshToken: signRefreshToken(payload), user };
+  return { accessToken: signAccessToken(payload), refreshToken: signRefreshToken(payload), user: sanitizeUser(user) };
 }
 
 export async function login(input: { email: string; password: string }) {
@@ -28,7 +33,7 @@ export async function login(input: { email: string; password: string }) {
   if (!valid) throw new ApiError(401, 'Invalid credentials');
 
   const payload = { sub: user.id, role: user.role, tokenVersion: user.refreshTokenVersion };
-  return { accessToken: signAccessToken(payload), refreshToken: signRefreshToken(payload), user };
+  return { accessToken: signAccessToken(payload), refreshToken: signRefreshToken(payload), user: sanitizeUser(user) };
 }
 
 export async function refresh(refreshToken: string) {

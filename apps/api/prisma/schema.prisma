@@ -112,6 +112,7 @@ model ArtistProfile {
   events                 Event[]
   merchItems             MerchItem[]
   strikes                ArtistStrike[]
+  followers              Follow[]
 }
 
 model VerificationRequest {
