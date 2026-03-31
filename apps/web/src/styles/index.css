@@ -3,5 +3,17 @@
 @tailwind utilities;
 
 :root { color-scheme: dark; }
-body { @apply bg-zinc-950 text-zinc-100 antialiased; }
-.card { @apply rounded-2xl border border-zinc-800 bg-zinc-900/60 backdrop-blur p-4; }
+body {
+  @apply bg-[#070707] text-zinc-100 antialiased;
+  background-image:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 30%),
+    linear-gradient(180deg, #111827 0%, #09090b 22%, #070707 100%);
+}
+
+#root {
+  @apply min-h-screen;
+}
+
+.card {
+  @apply rounded-[24px] border border-white/10 bg-[#161616]/90 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.28)] backdrop-blur;
+}
