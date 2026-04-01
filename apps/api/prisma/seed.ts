@@ -265,6 +265,12 @@ const commentSeeds: SeedComment[] = [
   { trackTitle: 'Noche en Rio Piedras', userEmail: 'admin@musipr.local', body: 'The rhythm section hits immediately. Strong live-set energy here.' }
 ];
 
+const librarySeeds = {
+  likedTrackTitles: ['Marea Lenta', 'Brisa en Loiza', 'Noche en Rio Piedras'],
+  savedTrackTitles: ['Brisa en Loiza', 'Postal de Isabela'],
+  savedPlaylistTitles: ['Indie Boricua', 'Alt Caribe']
+};
+
 async function upsertUser(email: string, password: string, role: UserRole) {
   return prisma.user.upsert({
     where: { email },
@@ -379,6 +385,7 @@ async function main() {
   for (const genre of allGenres) genreMap.set(genre.name, genre.id);
 
   const trackMap = new Map<string, Awaited<ReturnType<typeof prisma.track.create>>>();
+  const playlistMap = new Map<string, Awaited<ReturnType<typeof prisma.playlist.create>>>();
   for (const trackSeed of trackSeeds) {
     const artist = artistProfiles.get(trackSeed.artistName);
     const genreId = genreMap.get(trackSeed.genre);
@@ -424,6 +431,8 @@ async function main() {
         }
       });
     });
+
+    playlistMap.set(playlistSeed.title, playlist);
 
     for (const [index, trackTitle] of playlistSeed.trackTitles.entries()) {
       const track = trackMap.get(trackTitle);
@@ -572,6 +581,63 @@ async function main() {
         }
       });
     }
+  }
+
+  for (const trackTitle of librarySeeds.likedTrackTitles) {
+    const track = trackMap.get(trackTitle);
+    if (!track) continue;
+
+    await prisma.like.upsert({
+      where: {
+        trackId_userId: {
+          trackId: track.id,
+          userId: admin.id
+        }
+      },
+      update: {},
+      create: {
+        trackId: track.id,
+        userId: admin.id
+      }
+    });
+  }
+
+  for (const trackTitle of librarySeeds.savedTrackTitles) {
+    const track = trackMap.get(trackTitle);
+    if (!track) continue;
+
+    await prisma.savedTrack.upsert({
+      where: {
+        userId_trackId: {
+          userId: admin.id,
+          trackId: track.id
+        }
+      },
+      update: {},
+      create: {
+        userId: admin.id,
+        trackId: track.id
+      }
+    });
+  }
+
+  for (const playlistTitle of librarySeeds.savedPlaylistTitles) {
+    const playlist = playlistMap.get(playlistTitle);
+    if (!playlist) continue;
+
+    await prisma.savedPlaylist.upsert({
+      where: {
+        userId_playlistId: {
+          userId: admin.id,
+          playlistId: playlist.id
+        }
+      },
+      update: {},
+      create: {
+        userId: admin.id,
+        playlistId: playlist.id
+      }
+    });
   }
 
   console.log({

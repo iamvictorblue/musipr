@@ -10,6 +10,7 @@ import playlistRoutes from './playlists.routes.js';
 import releaseRoutes from './releases.routes.js';
 import eventRoutes from './events.routes.js';
 import merchRoutes from './merch.routes.js';
+import userRoutes from './users.routes.js';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.use('/tracks', trackRoutes);
 router.use('/uploads', uploadRoutes);
 router.use('/discovery', discoveryRoutes);
 router.use('/admin', adminRoutes);
-router.use('/users', Router());
+router.use('/users', userRoutes);
 router.use('/artists', artistRoutes);
 router.use('/playlists', playlistRoutes);
 router.use('/releases', releaseRoutes);

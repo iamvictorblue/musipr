@@ -39,3 +39,77 @@ export async function reportInfringement(req: AuthRequest, res: Response) {
   const report = await prisma.infringementReport.create({ data: payload });
   res.status(201).json(report);
 }
+
+export async function likeTrackHandler(req: AuthRequest, res: Response) {
+  const trackId = z.string().parse(req.params.id);
+  const userId = req.auth!.userId;
+
+  const existing = await prisma.like.findUnique({
+    where: {
+      trackId_userId: { trackId, userId }
+    }
+  });
+
+  if (!existing) {
+    await prisma.like.create({ data: { trackId, userId } });
+    await prisma.track.update({
+      where: { id: trackId },
+      data: { likeCount: { increment: 1 } }
+    });
+  }
+
+  res.json({ ok: true, liked: true });
+}
+
+export async function unlikeTrackHandler(req: AuthRequest, res: Response) {
+  const trackId = z.string().parse(req.params.id);
+  const userId = req.auth!.userId;
+
+  const existing = await prisma.like.findUnique({
+    where: {
+      trackId_userId: { trackId, userId }
+    }
+  });
+
+  if (existing) {
+    await prisma.like.delete({ where: { id: existing.id } });
+    await prisma.track.update({
+      where: { id: trackId },
+      data: { likeCount: { decrement: 1 } }
+    });
+  }
+
+  res.json({ ok: true, liked: false });
+}
+
+export async function saveTrackHandler(req: AuthRequest, res: Response) {
+  const trackId = z.string().parse(req.params.id);
+  const userId = req.auth!.userId;
+
+  await prisma.savedTrack.upsert({
+    where: {
+      userId_trackId: { userId, trackId }
+    },
+    update: {},
+    create: { userId, trackId }
+  });
+
+  res.json({ ok: true, saved: true });
+}
+
+export async function unsaveTrackHandler(req: AuthRequest, res: Response) {
+  const trackId = z.string().parse(req.params.id);
+  const userId = req.auth!.userId;
+
+  const existing = await prisma.savedTrack.findUnique({
+    where: {
+      userId_trackId: { userId, trackId }
+    }
+  });
+
+  if (existing) {
+    await prisma.savedTrack.delete({ where: { id: existing.id } });
+  }
+
+  res.json({ ok: true, saved: false });
+}

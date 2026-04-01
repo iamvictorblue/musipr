@@ -20,6 +20,7 @@ import turntableWarm from '../assets/editorial/turntable-warm.jpg';
 export type AccentTone = 'ember' | 'tide' | 'gold';
 
 export type UiArtist = {
+  id?: string;
   name: string;
   town: string;
   genre: string;
@@ -33,6 +34,7 @@ export type UiArtist = {
 };
 
 export type UiTrack = {
+  id?: string;
   title: string;
   artist: string;
   tag: string;
@@ -47,6 +49,7 @@ export type UiTrack = {
 };
 
 export type UiPlaylist = {
+  id?: string;
   title: string;
   description: string;
   count: string;
@@ -57,6 +60,7 @@ export type UiPlaylist = {
 };
 
 export type UiEvent = {
+  id?: string;
   title: string;
   venue: string;
   date: string;
@@ -67,6 +71,7 @@ export type UiEvent = {
 };
 
 export type UiMerch = {
+  id?: string;
   title: string;
   price: string;
   edition: string;
@@ -76,6 +81,7 @@ export type UiMerch = {
 };
 
 export type UiReleaseMoment = {
+  id?: string;
   title: string;
   artist: string;
   note: string;
@@ -242,6 +248,7 @@ export function mapArtist(artist: CatalogArtist): UiArtist {
     .filter(Boolean);
 
   return {
+    id: source.id,
     name,
     town: source.town ?? 'Puerto Rico',
     genre: source.genre ?? genreList[0] ?? 'Featured artist',
@@ -273,6 +280,7 @@ export function mapTrack(track: CatalogTrack): UiTrack {
   const slugSource = source.slug ?? title;
 
   return {
+    id: source.id,
     title,
     artist,
     tag: source.tag ?? 'Featured track',
@@ -295,6 +303,7 @@ export function mapPlaylist(playlist: CatalogPlaylist): UiPlaylist {
   const trackCount = source.trackCount ?? source._count?.tracks;
 
   return {
+    id: source.id,
     title,
     description: source.description ?? 'Editorial sequencing with a clear mood and point of view.',
     count: source.countLabel ?? `${trackCount ?? 18} tracks`,
@@ -314,6 +323,7 @@ export function mapRelease(release: CatalogRelease): UiReleaseMoment {
   const artist = source.artistName ?? source.artistProfile?.artistName ?? 'Featured artist';
 
   return {
+    id: source.id,
     title,
     artist,
     note: formatReleaseNote(source.note ?? source.releaseAt),
@@ -330,6 +340,7 @@ export function mapEvent(event: CatalogEvent): UiEvent {
   const venue = source.venue ?? source.town ?? 'Puerto Rico';
 
   return {
+    id: source.id,
     title: source.title ?? 'Live event',
     venue,
     date: source.dateLabel ?? formatEventDate(source.startsAt),
@@ -347,6 +358,7 @@ export function mapMerch(item: CatalogMerch): UiMerch {
   const title = source.title ?? 'Artist merch';
 
   return {
+    id: source.id,
     title,
     price: formatPrice(source.priceLabel ?? source.priceCents),
     edition: source.description ?? source.category ?? 'Limited run',

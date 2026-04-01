@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
+import { AuthRequest } from '../middleware/auth.js';
 import {
   deriveTrackTag,
   formatCompactCount,
@@ -362,4 +363,44 @@ export async function listMerch(_req: Request, res: Response) {
   });
 
   res.json(merch.map((item) => serializeMerch(item)));
+}
+
+export async function savePlaylist(req: AuthRequest, res: Response) {
+  const playlistId = String(req.params.id ?? '');
+  const userId = req.auth?.userId;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  await prisma.savedPlaylist.upsert({
+    where: {
+      userId_playlistId: { userId, playlistId }
+    },
+    update: {},
+    create: { userId, playlistId }
+  });
+
+  res.json({ ok: true, saved: true });
+}
+
+export async function unsavePlaylist(req: AuthRequest, res: Response) {
+  const playlistId = String(req.params.id ?? '');
+  const userId = req.auth?.userId;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const existing = await prisma.savedPlaylist.findUnique({
+    where: {
+      userId_playlistId: { userId, playlistId }
+    }
+  });
+
+  if (existing) {
+    await prisma.savedPlaylist.delete({ where: { id: existing.id } });
+  }
+
+  res.json({ ok: true, saved: false });
 }

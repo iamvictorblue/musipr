@@ -1,11 +1,23 @@
 import { create } from 'zustand';
-import { api, loginRequest, signupRequest, type AuthResponse, type AuthUser, type LoginInput, type SignupInput } from '../api/client';
+import {
+  api,
+  configureAuthClient,
+  loginRequest,
+  setApiAccessToken,
+  signupRequest,
+  type AuthResponse,
+  type AuthUser,
+  type LoginInput,
+  type RefreshTokensResponse,
+  type SignupInput
+} from '../api/client';
 
 type AuthState = {
   user: AuthUser | null;
   accessToken: string | null;
   refreshToken: string | null;
   setSession: (session: AuthResponse) => void;
+  updateTokens: (tokens: RefreshTokensResponse) => void;
   clearSession: () => void;
   login: (input: LoginInput) => Promise<AuthResponse>;
   signup: (input: SignupInput) => Promise<AuthResponse>;
@@ -36,12 +48,7 @@ function writeStoredSession(session: PersistedAuthState) {
 }
 
 function setApiAuthHeader(accessToken: string | null) {
-  if (accessToken) {
-    api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-    return;
-  }
-
-  delete api.defaults.headers.common.Authorization;
+  setApiAccessToken(accessToken);
 }
 
 const initialSession = readStoredSession();
@@ -54,6 +61,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: session.user,
       accessToken: session.accessToken,
       refreshToken: session.refreshToken
+    };
+
+    writeStoredSession(nextState);
+    setApiAuthHeader(nextState.accessToken);
+    set(nextState);
+  },
+  updateTokens: (tokens) => {
+    const current = get();
+    const nextState: PersistedAuthState = {
+      user: current.user,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
     };
 
     writeStoredSession(nextState);
@@ -88,3 +107,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   }
 }));
+
+configureAuthClient({
+  getRefreshToken: () => useAuthStore.getState().refreshToken,
+  onRefresh: (tokens) => {
+    useAuthStore.getState().updateTokens(tokens);
+  },
+  onUnauthorized: () => {
+    useAuthStore.getState().clearSession();
+  }
+});
