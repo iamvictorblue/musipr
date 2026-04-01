@@ -33,6 +33,35 @@ function HeartIcon({ filled = false }: { filled?: boolean }) {
   );
 }
 
+function FavoritesNavLink() {
+  return (
+    <NavLink
+      to="/favorites"
+      aria-label="Open favorites"
+      className={({ isActive }) =>
+        `inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
+          isActive
+            ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200 shadow-[0_0_0_1px_rgba(103,232,249,0.08)]'
+            : 'border-white/10 bg-black/20 text-zinc-300 hover:bg-black/35 hover:text-white'
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <span className="inline-flex items-center gap-2">
+          <span
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
+              isActive ? 'bg-cyan-300/15 text-cyan-200' : 'bg-white/5 text-zinc-300'
+            }`}
+          >
+            <HeartIcon filled={isActive} />
+          </span>
+          <span className="whitespace-nowrap">Tus likes</span>
+        </span>
+      )}
+    </NavLink>
+  );
+}
+
 export function AppShell() {
   return (
     <div className="min-h-screen bg-[#070707] pb-28 text-zinc-100">
@@ -54,6 +83,7 @@ export function AppShell() {
                     {label}
                   </NavLink>
                 ))}
+                <FavoritesNavLink />
               </div>
             </nav>
 
@@ -82,22 +112,7 @@ export function AppShell() {
                 What do you want to play?
               </div>
             </div>
-
             <div className="flex shrink-0 items-center gap-2">
-              <NavLink
-                to="/favorites"
-                aria-label="Open favorites"
-                className={({ isActive }) =>
-                  `inline-flex h-11 w-11 items-center justify-center rounded-2xl border text-sm transition ${
-                    isActive
-                      ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200 shadow-[0_0_0_1px_rgba(103,232,249,0.08)]'
-                      : 'border-white/10 bg-black/30 text-zinc-300 hover:bg-black/45 hover:text-white'
-                  }`
-                }
-              >
-                {({ isActive }) => <HeartIcon filled={isActive} />}
-              </NavLink>
-
               <Link
                 to="/profile"
                 aria-label="Open profile"
@@ -135,34 +150,22 @@ export function AppShell() {
               <div className="flex items-center rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-zinc-400">
                 What do you want to play?
               </div>
-              <NavLink
-                to="/favorites"
-                aria-label="Open favorites"
-                className={({ isActive }) =>
-                  `inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border transition ${
-                    isActive
-                      ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200'
-                      : 'border-white/10 bg-black/30 text-zinc-300 hover:bg-black/45 hover:text-white'
-                  }`
-                }
-              >
-                {({ isActive }) => <HeartIcon filled={isActive} />}
-              </NavLink>
             </div>
             <nav className="flex gap-4 overflow-x-auto text-sm text-zinc-300">
-                {topLinks.map(([to, label]) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) =>
-                      `whitespace-nowrap transition ${
-                        isActive ? 'text-white' : 'text-zinc-300 hover:text-white'
-                      }`
-                    }
-                  >
-                    {label}
-                  </NavLink>
-                ))}
+              {topLinks.map(([to, label]) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `whitespace-nowrap transition ${
+                      isActive ? 'text-white' : 'text-zinc-300 hover:text-white'
+                    }`
+                  }
+                >
+                  {label}
+                </NavLink>
+              ))}
+              <FavoritesNavLink />
             </nav>
           </div>
         </header>
