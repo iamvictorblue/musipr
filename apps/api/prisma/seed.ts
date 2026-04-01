@@ -268,7 +268,10 @@ const commentSeeds: SeedComment[] = [
 const librarySeeds = {
   likedTrackTitles: ['Marea Lenta', 'Brisa en Loiza', 'Noche en Rio Piedras'],
   savedTrackTitles: ['Brisa en Loiza', 'Postal de Isabela'],
-  savedPlaylistTitles: ['Indie Boricua', 'Alt Caribe']
+  savedPlaylistTitles: ['Indie Boricua', 'Alt Caribe'],
+  followedArtistNames: ['Luna Costa'],
+  remindedEventTitles: ['Noches en La Respuesta'],
+  savedMerchTitles: ['Brisa Tour Tee']
 };
 
 async function upsertUser(email: string, password: string, role: UserRole) {
@@ -636,6 +639,63 @@ async function main() {
       create: {
         userId: admin.id,
         playlistId: playlist.id
+      }
+    });
+  }
+
+  for (const artistName of librarySeeds.followedArtistNames) {
+    const artist = artistProfiles.get(artistName);
+    if (!artist) continue;
+
+    await prisma.follow.upsert({
+      where: {
+        fanUserId_artistProfileId: {
+          fanUserId: admin.id,
+          artistProfileId: artist.id
+        }
+      },
+      update: {},
+      create: {
+        fanUserId: admin.id,
+        artistProfileId: artist.id
+      }
+    });
+  }
+
+  for (const eventTitle of librarySeeds.remindedEventTitles) {
+    const event = await prisma.event.findFirst({ where: { title: eventTitle } });
+    if (!event) continue;
+
+    await prisma.eventReminder.upsert({
+      where: {
+        userId_eventId: {
+          userId: admin.id,
+          eventId: event.id
+        }
+      },
+      update: {},
+      create: {
+        userId: admin.id,
+        eventId: event.id
+      }
+    });
+  }
+
+  for (const merchTitle of librarySeeds.savedMerchTitles) {
+    const merch = await prisma.merchItem.findFirst({ where: { title: merchTitle } });
+    if (!merch) continue;
+
+    await prisma.savedMerchItem.upsert({
+      where: {
+        userId_merchItemId: {
+          userId: admin.id,
+          merchItemId: merch.id
+        }
+      },
+      update: {},
+      create: {
+        userId: admin.id,
+        merchItemId: merch.id
       }
     });
   }

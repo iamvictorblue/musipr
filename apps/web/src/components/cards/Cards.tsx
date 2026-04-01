@@ -56,23 +56,25 @@ function ArtworkTile({
 }
 
 export function ArtistCard({
+  id,
   name,
   town,
   genre = 'Featured artist',
   accent = 'tide',
   imageSrc
 }: {
+  id?: string;
   name: string;
   town: string;
   genre?: string;
   accent?: AccentTone;
   imageSrc?: string;
 }) {
-  const isFollowing = useEngagementStore((state) => state.isFollowingArtist(name));
+  const isFollowing = useEngagementStore((state) => state.isFollowingArtist(name, id));
   const toggleArtistFollow = useEngagementStore((state) => state.toggleArtistFollow);
 
   return (
-    <Link to={`/artists/${slugify(name)}`} className="card block p-5 transition duration-300 hover:-translate-y-1">
+    <Link to={`/artists/${slugify(name)}`} className="card interactive-card block p-5 transition duration-300 hover:-translate-y-1">
       <GradientWash accent={accent} />
       <div className="relative z-10 space-y-5">
         <div className="flex items-center justify-between">
@@ -92,7 +94,7 @@ export function ArtistCard({
             type="button"
             onClick={(event) => {
               event.preventDefault();
-              toggleArtistFollow(name);
+              void toggleArtistFollow(name, id);
             }}
             className={clsx('rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition', isFollowing ? 'bg-cyan-400/14 text-cyan-200' : 'bg-white/6 text-zinc-300 hover:text-white')}
           >
@@ -135,7 +137,7 @@ export function TrackCard({
           sourceLabel: tag
         })
       }
-      className="card group h-full w-full p-5 text-left transition duration-300 hover:-translate-y-1"
+      className="card interactive-card group h-full w-full p-5 text-left transition duration-300 hover:-translate-y-1"
     >
       <GradientWash accent={accent} />
       <div className="relative z-10 flex h-full flex-col gap-5">
@@ -177,7 +179,7 @@ export function PlaylistCard({
   imageSrc?: string;
 }) {
   return (
-    <Link to={`/playlists/${slugify(title)}`} className="card block p-5 transition duration-300 hover:-translate-y-1">
+    <Link to={`/playlists/${slugify(title)}`} className="card interactive-card block p-5 transition duration-300 hover:-translate-y-1">
       <GradientWash accent={accent} />
       <div className="relative z-10 space-y-5">
         <div className="eyebrow">Editorial playlist</div>
@@ -209,23 +211,25 @@ export function PlaylistCard({
 }
 
 export function EventCard({
+  id,
   title,
   venue,
   date = 'Fri 8PM',
   accent = 'tide',
   imageSrc
 }: {
+  id?: string;
   title: string;
   venue: string;
   date?: string;
   accent?: AccentTone;
   imageSrc?: string;
 }) {
-  const reminded = useEngagementStore((state) => state.isShowReminded(title));
+  const reminded = useEngagementStore((state) => state.isShowReminded(title, id));
   const toggleShowReminder = useEngagementStore((state) => state.toggleShowReminder);
 
   return (
-    <Link to="/shows" className="card block p-5 transition duration-300 hover:-translate-y-1">
+    <Link to="/shows" className="card interactive-card block p-5 transition duration-300 hover:-translate-y-1">
       <GradientWash accent={accent} />
       <div className="relative z-10 grid gap-5 md:grid-cols-[140px_1fr] md:items-center">
         <ArtworkTile accent={accent} label={date} imageSrc={imageSrc} mode="poster" showLabel={false} />
@@ -244,7 +248,7 @@ export function EventCard({
               type="button"
               onClick={(event) => {
                 event.preventDefault();
-                toggleShowReminder(title);
+                void toggleShowReminder(title, id);
               }}
               className={clsx('rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition', reminded ? 'bg-cyan-400/14 text-cyan-200' : 'bg-white/6 text-zinc-300 hover:text-white')}
             >
@@ -258,23 +262,25 @@ export function EventCard({
 }
 
 export function MerchCard({
+  id,
   title,
   price,
   edition = 'Limited run',
   accent = 'ember',
   imageSrc
 }: {
+  id?: string;
   title: string;
   price: string;
   edition?: string;
   accent?: AccentTone;
   imageSrc?: string;
 }) {
-  const saved = useEngagementStore((state) => state.isMerchSaved(title));
+  const saved = useEngagementStore((state) => state.isMerchSaved(title, id));
   const toggleMerchSave = useEngagementStore((state) => state.toggleMerchSave);
 
   return (
-    <Link to="/merch" className="card block p-5 transition duration-300 hover:-translate-y-1">
+    <Link to="/merch" className="card interactive-card block p-5 transition duration-300 hover:-translate-y-1">
       <GradientWash accent={accent} />
       <div className="relative z-10 space-y-5">
         <div className="flex items-center justify-between">
@@ -292,7 +298,7 @@ export function MerchCard({
             type="button"
             onClick={(event) => {
               event.preventDefault();
-              toggleMerchSave(title);
+              void toggleMerchSave(title, id);
             }}
             className={clsx('rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition', saved ? 'bg-cyan-400/14 text-cyan-200' : 'bg-white/6 text-zinc-300 hover:text-white')}
           >

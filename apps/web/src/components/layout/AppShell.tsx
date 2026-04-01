@@ -1,8 +1,8 @@
-import { FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
-import { useArtistDetailQuery, useDiscoveryHomeQuery, usePlaylistDetailQuery, useTrackDetailQuery } from '../../api/catalog';
+import { useArtistDetailQuery, useDiscoveryHomeQuery, useDiscoverySearchQuery, usePlaylistDetailQuery, useTrackDetailQuery } from '../../api/catalog';
 import { useUserLibraryQuery } from '../../api/library';
-import { buildArtistDetail, buildHomeCatalog, buildPlaylistDetail, buildTrackDetail } from '../../data/catalog';
+import { buildArtistDetail, buildHomeCatalog, buildPlaylistDetail, buildSearchCatalog, buildTrackDetail } from '../../data/catalog';
 import { useEngagementStore } from '../../store/engagement';
 import { useAuthStore } from '../../store/auth';
 import { type PlayerTrack, usePlayerStore } from '../../store/player';
@@ -22,6 +22,9 @@ const libraryFilters = [
   ['tracks', 'Tracks'],
   ['saved', 'Saved']
 ] as const;
+
+const LIBRARY_COLLAPSE_KEY = 'musipr.library.collapsed';
+const SEARCH_HISTORY_KEY = 'musipr.search.history';
 
 const fallbackLibraryEntries = [
   {
@@ -63,6 +66,14 @@ type LibraryEntry = {
   artworkUrl?: string | null;
   trailing?: string;
   playerTrack?: PlayerTrack;
+};
+
+type SearchSuggestion = {
+  id: string;
+  title: string;
+  meta: string;
+  to: string;
+  section: 'Artists' | 'Tracks' | 'Playlists' | 'Shows' | 'Merch';
 };
 
 function roleLinksForUser(role?: string | null) {
@@ -157,6 +168,24 @@ function HeartIcon({ filled = false }: { filled?: boolean }) {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4.5 4.5" />
+    </svg>
+  );
+}
+
 function HomeIcon() {
   return (
     <svg
@@ -175,13 +204,49 @@ function HomeIcon() {
   );
 }
 
-function FavoritesNavLink() {
+function LibraryIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 5.5h16" />
+      <path d="M4 12h10" />
+      <path d="M4 18.5h16" />
+    </svg>
+  );
+}
+
+function ChevronRailIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {collapsed ? <path d="m9 6 6 6-6 6" /> : <path d="m15 6-6 6 6 6" />}
+    </svg>
+  );
+}
+
+function FavoritesNavLink({ compact = false }: { compact?: boolean }) {
   return (
     <NavLink
       to="/liked-songs"
       aria-label="Open liked songs"
       className={({ isActive }) =>
-        `inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
+        `inline-flex items-center ${compact ? 'justify-center p-2.5' : 'gap-2 px-3 py-2'} rounded-full border text-sm font-medium transition ${
           isActive
             ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200 shadow-[0_0_0_1px_rgba(103,232,249,0.08)]'
             : 'border-white/10 bg-black/20 text-zinc-300 hover:bg-black/35 hover:text-white'
@@ -197,10 +262,108 @@ function FavoritesNavLink() {
           >
             <HeartIcon filled={isActive} />
           </span>
-          <span className="whitespace-nowrap">Tus likes</span>
+          {compact ? null : <span className="whitespace-nowrap">Tus likes</span>}
         </span>
       )}
     </NavLink>
+  );
+}
+
+function SearchCommandPanel({
+  open,
+  query,
+  isLoading,
+  suggestions,
+  recentSearches,
+  onSearch,
+  onNavigate
+}: {
+  open: boolean;
+  query: string;
+  isLoading: boolean;
+  suggestions: SearchSuggestion[];
+  recentSearches: string[];
+  onSearch: (query: string) => void;
+  onNavigate: (to: string, query: string) => void;
+}) {
+  if (!open) return null;
+
+  const groupedSuggestions = suggestions.reduce<Record<string, SearchSuggestion[]>>((groups, suggestion) => {
+    groups[suggestion.section] ??= [];
+    groups[suggestion.section].push(suggestion);
+    return groups;
+  }, {});
+
+  return (
+    <div className="search-command-panel absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-[24px] border border-white/10 bg-[#121212f2] p-3 shadow-[0_28px_70px_rgba(0,0,0,0.4)] backdrop-blur">
+      {query ? (
+        isLoading ? (
+          <div className="search-command-empty px-3 py-4 text-sm text-zinc-400">Searching the catalog...</div>
+        ) : suggestions.length ? (
+          <div className="space-y-4">
+            {Object.entries(groupedSuggestions).map(([section, items]) => (
+              <div key={section} className="search-command-section">
+                <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{section}</p>
+                <div className="mt-2 space-y-1">
+                  {items.slice(0, 3).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => onNavigate(item.to, query)}
+                      className="search-command-link w-full text-left"
+                    >
+                      <span className="block truncate text-sm font-semibold text-white">{item.title}</span>
+                      <span className="mt-1 block truncate text-xs text-zinc-500">{item.meta}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={() => onSearch(query)} className="search-command-link w-full text-left">
+              <span className="block text-sm font-semibold text-white">Search everything for "{query}"</span>
+              <span className="mt-1 block text-xs text-zinc-500">Open the full discover page with this query.</span>
+            </button>
+          </div>
+        ) : (
+          <div className="search-command-empty px-3 py-4 text-sm text-zinc-400">
+            No quick matches yet. Press Enter to search the full catalog for "{query}".
+          </div>
+        )
+      ) : (
+        <div className="space-y-4">
+          <div className="search-command-section">
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Recent searches</p>
+            <div className="mt-2 space-y-1">
+              {recentSearches.length ? (
+                recentSearches.map((item) => (
+                  <button key={item} type="button" onClick={() => onSearch(item)} className="search-command-link w-full text-left">
+                    <span className="block text-sm font-semibold text-white">{item}</span>
+                    <span className="mt-1 block text-xs text-zinc-500">Search the catalog again.</span>
+                  </button>
+                ))
+              ) : (
+                <div className="search-command-empty px-3 py-4 text-sm text-zinc-400">Searches you run from the header will show up here.</div>
+              )}
+            </div>
+          </div>
+          <div className="search-command-section">
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Quick jumps</p>
+            <div className="mt-2 space-y-1">
+              {[
+                { label: 'Browse artists', meta: 'Open discovery filtered around artist worlds.', to: '/discover?q=artist' },
+                { label: 'Open playlists', meta: 'Jump straight to editorial and saved mixes.', to: '/playlists' },
+                { label: 'See live shows', meta: 'Check upcoming events and reminders.', to: '/shows' }
+              ].map((item) => (
+                <button key={item.label} type="button" onClick={() => onNavigate(item.to, '')} className="search-command-link w-full text-left">
+                  <span className="block text-sm font-semibold text-white">{item.label}</span>
+                  <span className="mt-1 block text-xs text-zinc-500">{item.meta}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -327,9 +490,9 @@ function RouteContextRail() {
     const release = artistDetail.releases[0] ?? homeCatalog.releaseMoments[0];
     const show = artistDetail.shows[0] ?? homeCatalog.events[0];
     const merch = artistDetail.merch[0] ?? homeCatalog.merch[0];
-    const following = isFollowingArtist(artist.name);
-    const showReminder = show ? isShowReminded(show.title) : false;
-    const merchSaved = merch ? isMerchSaved(merch.title) : false;
+    const following = isFollowingArtist(artist.name, artist.id);
+    const showReminder = show ? isShowReminded(show.title, show.id) : false;
+    const merchSaved = merch ? isMerchSaved(merch.title, merch.id) : false;
 
     return (
       <>
@@ -350,7 +513,7 @@ function RouteContextRail() {
           </div>
           <button
             type="button"
-            onClick={() => toggleArtistFollow(artist.name)}
+            onClick={() => void toggleArtistFollow(artist.name, artist.id)}
             className={`mt-4 w-full justify-center rounded-full px-4 py-3 text-sm font-semibold transition ${following ? 'bg-cyan-400/14 text-cyan-200' : 'bg-white/[0.05] text-zinc-200 hover:bg-white/[0.08] hover:text-white'}`}
           >
             {following ? 'Following artist' : 'Follow artist'}
@@ -393,7 +556,7 @@ function RouteContextRail() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => toggleShowReminder(show.title)}
+                  onClick={() => void toggleShowReminder(show.title, show.id)}
                   className={`flex-1 justify-center rounded-full px-4 py-3 text-sm font-semibold transition ${showReminder ? 'bg-cyan-400/14 text-cyan-200' : 'bg-white/[0.05] text-zinc-200 hover:bg-white/[0.08] hover:text-white'}`}
                 >
                   {showReminder ? 'Reminder on' : 'Remind me'}
@@ -419,7 +582,7 @@ function RouteContextRail() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => toggleMerchSave(merch.title)}
+                  onClick={() => void toggleMerchSave(merch.title, merch.id)}
                   className={`flex-1 justify-center rounded-full px-4 py-3 text-sm font-semibold transition ${merchSaved ? 'bg-cyan-400/14 text-cyan-200' : 'bg-white/[0.05] text-zinc-200 hover:bg-white/[0.08] hover:text-white'}`}
                 >
                   {merchSaved ? 'Saved item' : 'Save item'}
@@ -554,12 +717,30 @@ function RouteContextRail() {
 
 export function AppShell() {
   const { user, logout } = useAuthStore();
+  const { hydrateFromApi, clearEngagement } = useEngagementStore((state) => ({
+    hydrateFromApi: state.hydrateFromApi,
+    clearEngagement: state.clear
+  }));
   const libraryQuery = useUserLibraryQuery(Boolean(user));
   const location = useLocation();
   const navigate = useNavigate();
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const desktopSearchRef = useRef<HTMLInputElement | null>(null);
+  const mobileSearchRef = useRef<HTMLInputElement | null>(null);
+  const desktopSearchShellRef = useRef<HTMLDivElement | null>(null);
+  const mobileSearchShellRef = useRef<HTMLDivElement | null>(null);
+  const trackRouteMatch = useMatch('/tracks/:id');
+  const artistRouteMatch = useMatch('/artists/:id');
+  const playlistRouteMatch = useMatch('/playlists/:id');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [librarySort, setLibrarySort] = useState<LibrarySort>('recent');
+  const [isLibraryCollapsed, setIsLibraryCollapsed] = useState(false);
+  const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
+  const [headerScrollY, setHeaderScrollY] = useState(0);
   const { currentTrack, queue, currentIndex, setQueue, setTrack } = usePlayerStore((state) => ({
     currentTrack: state.currentTrack,
     queue: state.queue,
@@ -571,7 +752,26 @@ export function AppShell() {
   useEffect(() => {
     const nextQuery = location.pathname === '/discover' ? new URLSearchParams(location.search).get('q') ?? '' : '';
     setSearchQuery(nextQuery);
+    setSearchPanelOpen(false);
+    setMobileSearchExpanded(false);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    try {
+      const storedHistory = JSON.parse(window.localStorage.getItem(SEARCH_HISTORY_KEY) ?? '[]');
+      setRecentSearches(Array.isArray(storedHistory) ? storedHistory.filter((value): value is string => typeof value === 'string').slice(0, 6) : []);
+    } catch {
+      setRecentSearches([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      setIsLibraryCollapsed(window.localStorage.getItem(LIBRARY_COLLAPSE_KEY) === 'true');
+    } catch {
+      setIsLibraryCollapsed(false);
+    }
+  }, []);
 
   const queueSeed = useMemo(
     () => (libraryQuery.data?.likedTracks ?? []).map((track) => buildPlayerTrack(track)),
@@ -583,6 +783,112 @@ export function AppShell() {
       setQueue(queueSeed, 0, false);
     }
   }, [queue.length, queueSeed, setQueue]);
+
+  useEffect(() => {
+    if (!user) {
+      clearEngagement();
+      return;
+    }
+
+    void hydrateFromApi(user.id);
+  }, [clearEngagement, hydrateFromApi, user]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!desktopSearchShellRef.current?.contains(target) && !mobileSearchShellRef.current?.contains(target)) {
+        setSearchPanelOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSearchPanelOpen(false);
+        setMobileSearchExpanded(false);
+        return;
+      }
+
+      if (event.key === '/' && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) {
+        event.preventDefault();
+        if (window.innerWidth < 768) {
+          setMobileSearchExpanded(true);
+        }
+        const target = window.innerWidth >= 768 ? desktopSearchRef.current : mobileSearchRef.current;
+        target?.focus();
+        setSearchPanelOpen(true);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncScroll = () => {
+      setHeaderScrollY(window.scrollY);
+    };
+
+    syncScroll();
+    window.addEventListener('scroll', syncScroll, { passive: true });
+    return () => window.removeEventListener('scroll', syncScroll);
+  }, []);
+
+  useEffect(() => {
+    const shellElement = shellRef.current;
+    const headerElement = headerRef.current;
+    const playerElement = document.querySelector<HTMLElement>('.global-player-shell');
+
+    if (!shellElement || !headerElement) return;
+
+    const syncRailOffsets = () => {
+      const headerHeight = headerElement.getBoundingClientRect().height;
+      const playerHeight = playerElement?.getBoundingClientRect().height ?? 112;
+      shellElement.style.setProperty('--desktop-rail-top', `${Math.round(headerHeight + 24)}px`);
+      shellElement.style.setProperty('--desktop-rail-bottom', `${Math.round(playerHeight + 24)}px`);
+    };
+
+    syncRailOffsets();
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncRailOffsets();
+    });
+
+    resizeObserver.observe(headerElement);
+    if (playerElement) {
+      resizeObserver.observe(playerElement);
+    }
+
+    window.addEventListener('resize', syncRailOffsets);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', syncRailOffsets);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSearchExpanded) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      mobileSearchRef.current?.focus();
+      setSearchPanelOpen(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [mobileSearchExpanded]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LIBRARY_COLLAPSE_KEY, String(isLibraryCollapsed));
+    } catch {
+      // Ignore persistence issues and keep the in-memory state working.
+    }
+  }, [isLibraryCollapsed]);
 
   const libraryEntries = useMemo(() => {
     const playlists: LibraryEntry[] = (libraryQuery.data?.savedPlaylists ?? []).map((playlist, index) => ({
@@ -656,20 +962,113 @@ export function AppShell() {
   }, [libraryFilter, libraryQuery.data, librarySort]);
 
   const upNext = useMemo(() => queue.slice(currentIndex + 1, currentIndex + 4), [currentIndex, queue]);
+  const deferredSearchQuery = useDeferredValue(searchQuery.trim());
+  const searchResultsQuery = useDiscoverySearchQuery(searchPanelOpen ? deferredSearchQuery : '');
+  const searchCatalog = buildSearchCatalog(searchResultsQuery.data);
+  const mobileNavLinks = useMemo(() => {
+    const links = topLinks.filter(([to]) => to === '/');
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const params = new URLSearchParams();
-    const trimmedQuery = searchQuery.trim();
-
-    if (trimmedQuery) {
-      params.set('q', trimmedQuery);
+    if (location.pathname.startsWith('/playlists')) {
+      links.push(['/playlists', 'Playlists']);
+    } else if (location.pathname.startsWith('/liked-songs')) {
+      links.push(['/liked-songs', 'Likes']);
+    } else if (location.pathname.startsWith('/admin')) {
+      links.push(['/admin', 'Admin']);
+    } else if (location.pathname.startsWith('/artist')) {
+      links.push(['/artist/dashboard', 'Studio']);
     }
+
+    return links;
+  }, [location.pathname]);
+
+  const searchSuggestions = useMemo<SearchSuggestion[]>(() => {
+    if (!deferredSearchQuery) return [];
+
+    return [
+      ...searchCatalog.artists.slice(0, 3).map((artist) => ({
+        id: `artist-${artist.id ?? artist.name}`,
+        title: artist.name,
+        meta: `${artist.genre} | ${artist.town}`,
+        to: `/artists/${slugify(artist.name)}`,
+        section: 'Artists' as const
+      })),
+      ...searchCatalog.tracks.slice(0, 4).map((track) => ({
+        id: `track-${track.id ?? track.title}`,
+        title: track.title,
+        meta: `${track.artist} | ${track.plays}`,
+        to: `/tracks/${slugify(track.title)}`,
+        section: 'Tracks' as const
+      })),
+      ...searchCatalog.playlists.slice(0, 3).map((playlist) => ({
+        id: `playlist-${playlist.id ?? playlist.title}`,
+        title: playlist.title,
+        meta: playlist.count,
+        to: `/playlists/${slugify(playlist.title)}`,
+        section: 'Playlists' as const
+      })),
+      ...searchCatalog.events.slice(0, 2).map((event) => ({
+        id: `event-${event.id ?? event.title}`,
+        title: event.title,
+        meta: `${event.venue} | ${event.date}`,
+        to: '/shows',
+        section: 'Shows' as const
+      })),
+      ...searchCatalog.merch.slice(0, 2).map((item) => ({
+        id: `merch-${item.id ?? item.title}`,
+        title: item.title,
+        meta: `${item.price} | ${item.edition}`,
+        to: '/merch',
+        section: 'Merch' as const
+      }))
+    ];
+  }, [deferredSearchQuery, searchCatalog.artists, searchCatalog.events, searchCatalog.merch, searchCatalog.playlists, searchCatalog.tracks]);
+
+  function pushRecentSearch(query: string) {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    const nextHistory = [trimmedQuery, ...recentSearches.filter((item) => item.toLowerCase() !== trimmedQuery.toLowerCase())].slice(0, 6);
+    setRecentSearches(nextHistory);
+
+    try {
+      window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(nextHistory));
+    } catch {
+      // Ignore persistence failures and keep search usable.
+    }
+  }
+
+  function openSearchResults(query: string) {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      setSearchPanelOpen(false);
+      void navigate('/discover');
+      return;
+    }
+
+    pushRecentSearch(trimmedQuery);
+    setSearchPanelOpen(false);
+
+    const params = new URLSearchParams();
+    params.set('q', trimmedQuery);
 
     void navigate({
       pathname: '/discover',
-      search: params.toString() ? `?${params.toString()}` : ''
+      search: `?${params.toString()}`
     });
+  }
+
+  function navigateFromSearch(to: string, query: string) {
+    if (query.trim()) {
+      pushRecentSearch(query);
+    }
+
+    setSearchPanelOpen(false);
+    void navigate(to);
+  }
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    openSearchResults(searchQuery);
   }
 
   const profileInitials = user?.email.slice(0, 2).toUpperCase() ?? 'LC';
@@ -677,11 +1076,17 @@ export function AppShell() {
   const roleLinks = roleLinksForUser(user?.role);
   const createLink = user?.role === 'ARTIST' || user?.role === 'VERIFIED_ARTIST' ? '/artist/upload' : user ? '/playlists' : '/login';
   const libraryCounts = libraryQuery.data?.counts ?? { likedTracks: 0, savedTracks: 0, savedPlaylists: 0 };
+  const isImmersiveRoute = Boolean(trackRouteMatch || artistRouteMatch || playlistRouteMatch);
+  const headerProgress = Math.min(headerScrollY / (isImmersiveRoute ? 220 : 96), 1);
 
   return (
-    <div className="min-h-screen bg-[#070707] pb-32 text-zinc-100">
-      <div className="mx-auto max-w-[1600px] px-3 py-3">
-        <header className="mb-4 rounded-[28px] border border-white/10 bg-[#121212]/94 px-5 py-4 shadow-[0_16px_40px_rgba(0,0,0,0.22)] backdrop-blur md:px-7">
+    <div ref={shellRef} className="min-h-screen bg-[#070707] pb-32 text-zinc-100">
+      <div className="px-2 py-2 xl:px-3">
+        <header
+          ref={headerRef}
+          className="app-shell-header sticky top-2 z-40 mb-4 rounded-[28px] border border-white/10 px-5 py-4 backdrop-blur md:px-7"
+          style={{ ['--header-progress' as string]: headerProgress }}
+        >
           <div className="flex items-center justify-between gap-4">
             <nav className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
               <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -724,18 +1129,34 @@ export function AppShell() {
                 <HomeIcon />
               </Link>
 
-              <form onSubmit={handleSearchSubmit} className="flex w-[300px] items-center rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-zinc-400">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="What do you want to play?"
-                  className="w-full border-0 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
+              <div ref={desktopSearchShellRef} className="search-command-shell relative w-[360px]">
+                <form onSubmit={handleSearchSubmit} className="flex items-center rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-zinc-400">
+                  <input
+                    ref={desktopSearchRef}
+                    type="text"
+                    value={searchQuery}
+                    onFocus={() => setSearchPanelOpen(true)}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="What do you want to play?"
+                    className="w-full border-0 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
+                  />
+                  <span className="search-command-hint ml-3 hidden rounded-full border border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 lg:inline-flex">
+                    /
+                  </span>
+                </form>
+                <SearchCommandPanel
+                  open={searchPanelOpen}
+                  query={searchQuery.trim()}
+                  isLoading={searchResultsQuery.isLoading}
+                  suggestions={searchSuggestions}
+                  recentSearches={recentSearches}
+                  onSearch={openSearchResults}
+                  onNavigate={navigateFromSearch}
                 />
-              </form>
+              </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden shrink-0 items-center gap-2 md:flex">
               <Link to="/" className="hidden text-lg font-semibold tracking-tight text-white transition hover:text-zinc-200 lg:inline-flex">
                 MusiPR
               </Link>
@@ -761,128 +1182,194 @@ export function AppShell() {
             </div>
           </div>
 
-          <div className="mt-3 flex flex-col gap-3 md:hidden">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to="/" className="text-base font-semibold tracking-tight text-white transition hover:text-zinc-200">
+          <div className="mt-2 flex flex-col gap-2 md:hidden">
+            <div className="flex items-center gap-2">
+              <Link to="/" className="shrink-0 text-[15px] font-semibold tracking-tight text-white transition hover:text-zinc-200">
                 MusiPR
               </Link>
-              <Link
-                to="/"
-                aria-label="Home"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/30 text-white transition hover:bg-white/5"
-              >
-                <HomeIcon />
-              </Link>
-              <form onSubmit={handleSearchSubmit} className="order-last flex basis-full items-center rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-zinc-400 sm:order-none sm:basis-auto sm:flex-1">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search music"
-                  className="w-full border-0 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
-                />
-              </form>
+              <nav className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden whitespace-nowrap text-[13px] text-zinc-300">
+                {mobileNavLinks.map(([to, label]) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    className={({ isActive }) =>
+                      `shrink-0 transition ${
+                        isActive ? 'text-white' : 'text-zinc-300 hover:text-white'
+                      }`
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                ))}
+              </nav>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <FavoritesNavLink compact />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileSearchExpanded((value) => !value);
+                    if (mobileSearchExpanded) {
+                      setSearchPanelOpen(false);
+                    }
+                  }}
+                  aria-label="Open search"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                    mobileSearchExpanded
+                      ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200'
+                      : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                  }`}
+                >
+                  <SearchIcon />
+                </button>
+                <Link
+                  to={user ? '/profile' : '/login'}
+                  aria-label={user ? 'Open profile' : 'Open login'}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/30 text-white transition hover:bg-black/45"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-emerald-300 via-cyan-400 to-blue-500 text-[10px] font-semibold text-black">
+                    {profileInitials}
+                  </span>
+                </Link>
+              </div>
             </div>
-            <nav className="flex gap-4 overflow-x-auto pb-1 text-sm text-zinc-300">
-              {topLinks.map(([to, label]) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `whitespace-nowrap transition ${
-                      isActive ? 'text-white' : 'text-zinc-300 hover:text-white'
-                    }`
-                  }
-                >
-                  {label}
-                </NavLink>
-              ))}
-              {roleLinks.map(([to, label]) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `whitespace-nowrap transition ${
-                      isActive ? 'text-white' : 'text-zinc-300 hover:text-white'
-                    }`
-                  }
-                >
-                  {label}
-                </NavLink>
-              ))}
-              <FavoritesNavLink />
-            </nav>
+
+            {mobileSearchExpanded ? (
+              <div ref={mobileSearchShellRef} className="search-command-shell">
+                <form onSubmit={handleSearchSubmit} className="flex items-center rounded-full border border-white/10 bg-black/20 px-3.5 py-1.5 text-sm text-zinc-400">
+                  <input
+                    ref={mobileSearchRef}
+                    type="text"
+                    value={searchQuery}
+                    onFocus={() => setSearchPanelOpen(true)}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search music"
+                    className="w-full border-0 bg-transparent text-[13px] text-zinc-200 outline-none placeholder:text-zinc-500"
+                  />
+                </form>
+                <SearchCommandPanel
+                  open={searchPanelOpen}
+                  query={searchQuery.trim()}
+                  isLoading={searchResultsQuery.isLoading}
+                  suggestions={searchSuggestions}
+                  recentSearches={recentSearches}
+                  onSearch={openSearchResults}
+                  onNavigate={navigateFromSearch}
+                />
+              </div>
+            ) : null}
           </div>
         </header>
 
-        <div className="grid min-h-screen gap-3 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]">
-          <aside className="hidden lg:block">
-            <section className="flex min-h-0 flex-1 flex-col rounded-[26px] border border-white/10 bg-[#121212] p-4">
+        <div
+          className="app-shell-grid min-h-screen gap-3"
+          style={{ ['--library-width' as string]: isLibraryCollapsed ? '92px' : '320px' }}
+        >
+          <aside className="desktop-rail-shell hidden lg:block">
+            <section
+              className={`library-rail desktop-rail-panel flex min-h-0 flex-1 flex-col rounded-[26px] border border-white/10 bg-[#121212] ${isLibraryCollapsed ? 'p-3' : 'p-4'}`}
+              data-collapsed={isLibraryCollapsed ? 'true' : 'false'}
+            >
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">Collection</p>
-                  <h2 className="mt-1 text-lg font-semibold text-white">Your library</h2>
-                </div>
-                <Link
-                  to={createLink}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-white transition hover:bg-white/[0.08]"
-                >
-                  <span className="text-base leading-none">+</span>
-                  <span>Create</span>
-                </Link>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {libraryFilters.map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setLibraryFilter(value)}
-                    className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                      libraryFilter === value
-                        ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200'
-                        : 'border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] px-3 py-3">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-zinc-500">
-                  <span>{libraryEntries.length} items</span>
-                </div>
-                <div className="flex gap-2">
-                  {(['recent', 'alpha'] as const).map((value) => (
+                {isLibraryCollapsed ? (
+                  <div className="flex w-full flex-col items-center gap-3">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-200">
+                      <LibraryIcon />
+                    </div>
                     <button
-                      key={value}
                       type="button"
-                      onClick={() => setLibrarySort(value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        librarySort === value ? 'bg-white text-black' : 'bg-white/[0.05] text-zinc-300 hover:text-white'
-                      }`}
+                      onClick={() => setIsLibraryCollapsed(false)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
                     >
-                      {value === 'recent' ? 'Recent' : 'A-Z'}
+                      <ChevronRailIcon collapsed />
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {[
-                  ['Liked', String(libraryCounts.likedTracks)],
-                  ['Saved', String(libraryCounts.savedTracks)],
-                  ['Lists', String(libraryCounts.savedPlaylists)]
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3">
-                    <p className="text-lg font-semibold text-white">{value}</p>
-                    <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+                    <Link
+                      to={createLink}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-lg font-semibold text-white transition hover:bg-white/[0.08]"
+                    >
+                      +
+                    </Link>
                   </div>
-                ))}
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">Collection</p>
+                      <h2 className="mt-1 text-lg font-semibold text-white">Your library</h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={createLink}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+                      >
+                        <span className="text-base leading-none">+</span>
+                        <span>Create</span>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setIsLibraryCollapsed(true)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        <ChevronRailIcon collapsed={false} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {isLibraryCollapsed ? null : (
+                <>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {libraryFilters.map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setLibraryFilter(value)}
+                        className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                          libraryFilter === value
+                            ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-200'
+                            : 'border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] px-3 py-3">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-zinc-500">
+                      <span>{libraryEntries.length} items</span>
+                    </div>
+                    <div className="flex gap-2">
+                      {(['recent', 'alpha'] as const).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setLibrarySort(value)}
+                          className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                            librarySort === value ? 'bg-white text-black' : 'bg-white/[0.05] text-zinc-300 hover:text-white'
+                          }`}
+                        >
+                          {value === 'recent' ? 'Recent' : 'A-Z'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    {[
+                      ['Liked', String(libraryCounts.likedTracks)],
+                      ['Saved', String(libraryCounts.savedTracks)],
+                      ['Lists', String(libraryCounts.savedPlaylists)]
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3">
+                        <p className="text-lg font-semibold text-white">{value}</p>
+                        <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className={`mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto ${isLibraryCollapsed ? '' : 'pr-1'}`}>
                 {libraryEntries.map((entry, index) => {
                   const isActive = location.pathname === entry.to;
 
@@ -900,11 +1387,12 @@ export function AppShell() {
                           }
                         }
                       }}
-                      className={`flex items-center gap-3 rounded-[22px] border px-3 py-3 transition ${
+                      className={`library-entry group relative flex items-center ${isLibraryCollapsed ? 'justify-center' : 'gap-3'} rounded-[22px] border ${isLibraryCollapsed ? 'px-2 py-3' : 'px-3 py-3'} transition ${
                         isActive
                           ? 'border-cyan-300/30 bg-cyan-400/10'
                           : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
                       }`}
+                      title={isLibraryCollapsed ? entry.title : undefined}
                     >
                       <div className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-gradient-to-br ${entry.accentClass}`}>
                         {entry.artworkUrl ? (
@@ -913,24 +1401,37 @@ export function AppShell() {
                           <span className="text-sm font-semibold text-black">{initialsFromTitle(entry.title)}</span>
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{entry.title}</p>
-                            <p className="mt-1 truncate text-xs text-zinc-500">{entry.subtitle}</p>
+                      {isLibraryCollapsed ? null : (
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-white">{entry.title}</p>
+                              <p className="mt-1 truncate text-xs text-zinc-500">{entry.subtitle}</p>
+                            </div>
+                            <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{entry.trailing ?? String(index + 1).padStart(2, '0')}</span>
                           </div>
-                          <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{entry.trailing ?? String(index + 1).padStart(2, '0')}</span>
                         </div>
-                      </div>
+                      )}
+                      {isLibraryCollapsed ? (
+                        <div className="library-entry-flyout pointer-events-none absolute left-full top-1/2 z-20 ml-3 w-56 -translate-y-1/2 rounded-[20px] border border-white/10 bg-[#161616f2] p-3 shadow-[0_24px_50px_rgba(0,0,0,0.34)] backdrop-blur">
+                          <p className="truncate text-sm font-semibold text-white">{entry.title}</p>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">{entry.subtitle}</p>
+                          <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                            {entry.trailing ?? String(index + 1).padStart(2, '0')}
+                          </p>
+                        </div>
+                      ) : null}
                     </Link>
                   );
                 })}
               </div>
 
-              <div className="mt-4 rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(59,130,246,0.08))] p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Library tip</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-200">Use likes and playlist saves to shape your queue. The player now pulls from this rail instead of acting like a disconnected demo footer.</p>
-              </div>
+              {isLibraryCollapsed ? null : (
+                <div className="mt-4 rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(59,130,246,0.08))] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Library tip</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-200">Use likes and playlist saves to shape your queue. The player now pulls from this rail instead of acting like a disconnected demo footer.</p>
+                </div>
+              )}
             </section>
           </aside>
 
@@ -942,8 +1443,8 @@ export function AppShell() {
             </section>
           </div>
 
-          <aside className="hidden xl:block">
-            <section className="space-y-4 rounded-[26px] border border-white/10 bg-[#121212] p-4">
+          <aside className="desktop-rail-shell hidden xl:block">
+            <section className="desktop-rail-scroll space-y-4 rounded-[26px] border border-white/10 bg-[#121212] p-4">
               <article className="rounded-[24px] border border-white/10 bg-[#181818] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>

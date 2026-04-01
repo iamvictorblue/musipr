@@ -80,6 +80,8 @@ model User {
   playlists           Playlist[]
   savedTracks         SavedTrack[]
   savedPlaylists      SavedPlaylist[]
+  eventReminders      EventReminder[]
+  savedMerchItems     SavedMerchItem[]
   notifications       Notification[]
 }
 
@@ -267,6 +269,7 @@ model Event {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   artistProfile         ArtistProfile @relation(fields: [artistProfileId], references: [id])
+  reminders             EventReminder[]
 }
 
 model MerchItem {
@@ -281,6 +284,7 @@ model MerchItem {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   artistProfile         ArtistProfile @relation(fields: [artistProfileId], references: [id])
+  savedBy               SavedMerchItem[]
 }
 
 model InfringementReport {
@@ -367,6 +371,26 @@ model SavedPlaylist {
   user                  User     @relation(fields: [userId], references: [id])
   playlist              Playlist @relation(fields: [playlistId], references: [id])
   @@unique([userId, playlistId])
+}
+
+model EventReminder {
+  id                    String   @id @default(cuid())
+  userId                String
+  eventId               String
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id])
+  event                 Event    @relation(fields: [eventId], references: [id])
+  @@unique([userId, eventId])
+}
+
+model SavedMerchItem {
+  id                    String   @id @default(cuid())
+  userId                String
+  merchItemId           String
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id])
+  merchItem             MerchItem @relation(fields: [merchItemId], references: [id])
+  @@unique([userId, merchItemId])
 }
 
 model Job {

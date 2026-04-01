@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { FormEvent, ReactNode, startTransition, useState } from 'react';
+import { type CSSProperties, FormEvent, ReactNode, startTransition, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   useArtistDetailQuery,
@@ -396,6 +396,22 @@ function buildPlayerTrackFromUiTrack(track: UiTrack) {
   };
 }
 
+function useWindowScrollProgress(limit = 240) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const syncScroll = () => {
+      setProgress(Math.min(window.scrollY / limit, 1));
+    };
+
+    syncScroll();
+    window.addEventListener('scroll', syncScroll, { passive: true });
+    return () => window.removeEventListener('scroll', syncScroll);
+  }, [limit]);
+
+  return progress;
+}
+
 function PlayableTrackTable({
   eyebrow,
   title,
@@ -445,20 +461,33 @@ function PlayableTrackTable({
                 key={playerTrack.id}
                 to={`/tracks/${slugify(track.title)}`}
                 onClick={() => setQueue(playerQueue, index, true)}
-                className={`grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition ${
+                className={`track-table-row group grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition ${
                   isCurrent ? 'bg-cyan-400/[0.08]' : 'hover:bg-white/[0.04]'
                 }`}
               >
-                <div className="flex items-center justify-center text-sm font-semibold text-zinc-400">
+                <div className="track-row-index flex items-center justify-center text-sm font-semibold text-zinc-400">
                   {isCurrent ? (
-                    <span className="text-cyan-200">{String(currentIndex + 1).padStart(2, '0')}</span>
+                    <span className="track-row-wave text-cyan-200" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
                   ) : (
-                    String(index + 1).padStart(2, '0')
+                    <>
+                      <span className="track-row-number">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="track-row-play" aria-hidden="true">
+                        ▶
+                      </span>
+                    </>
                   )}
                 </div>
                 <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className={clsx('h-12 w-12 shrink-0 rounded-[14px]', !track.imageSrc && `artwork-${track.accent}`, track.imageSrc && 'mini-cover-photo')}
+                    className={clsx(
+                      'track-row-art h-12 w-12 shrink-0 rounded-[14px]',
+                      !track.imageSrc && `artwork-${track.accent}`,
+                      track.imageSrc && 'mini-cover-photo'
+                    )}
                     style={track.imageSrc ? { backgroundImage: `url(${track.imageSrc})` } : undefined}
                   />
                   <div className="min-w-0">
@@ -1226,7 +1255,7 @@ export function DiscoverPage() {
     filteredReleaseMoments.length;
 
   return (
-    <section className="space-y-6">
+    <section className="page-stagger space-y-6">
       <div className="space-y-2">
         <p className="text-sm font-medium text-zinc-400">{query ? 'Search results' : 'Descubrimiento'}</p>
         <h2 className="text-2xl font-semibold text-white">{query ? `Resultados para "${query}"` : 'Descubrimiento'}</h2>
@@ -1399,7 +1428,7 @@ export function AuthPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="page-stagger space-y-6">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,31,56,0.92),rgba(11,11,11,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1.1fr_0.9fr] md:px-8 md:py-8">
           <div className="space-y-5">
@@ -2156,7 +2185,7 @@ function ArtistDashboardContent() {
   const showMoments = homeCatalog.events.slice(0, 2);
 
   return (
-    <section className="space-y-6">
+    <section className="page-stagger space-y-6">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(16,29,54,0.94),rgba(12,12,12,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[140px_minmax(0,1fr)_300px] md:px-8 md:py-8">
           <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#181818]">
@@ -2309,6 +2338,7 @@ export function TrackDetailPage() {
   const { id } = useParams();
   const { user } = useAuthStore();
   const setQueue = usePlayerStore((state) => state.setQueue);
+  const heroProgress = useWindowScrollProgress();
   const detail = buildTrackDetail(useTrackDetailQuery(id ?? '').data);
   const libraryQuery = useUserLibraryQuery(Boolean(user));
   const track = detail.track;
@@ -2320,12 +2350,15 @@ export function TrackDetailPage() {
 
   return (
     <section className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(16,25,42,0.96),rgba(15,15,15,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+      <section
+        className="route-hero overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(16,25,42,0.96),rgba(15,15,15,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]"
+        style={{ ['--hero-progress' as string]: heroProgress } as CSSProperties}
+      >
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[180px_minmax(0,1fr)_280px] md:px-8 md:py-8">
-          <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#181818]">
+          <div className="route-hero-media overflow-hidden rounded-[24px] border border-white/10 bg-[#181818]">
             {track.imageSrc ? <img src={track.imageSrc} alt="" className="aspect-square h-full w-full object-cover" /> : <div className={`aspect-square artwork-${track.accent}`} />}
           </div>
-          <div className="space-y-4">
+          <div className="route-hero-copy space-y-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Track</p>
               <h1 className="mt-2 text-4xl font-bold tracking-tight text-white md:text-6xl">{track.title}</h1>
@@ -2360,7 +2393,7 @@ export function TrackDetailPage() {
               ) : null}
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="route-hero-metrics grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
             <DetailMetric label="Queue lane" value={`${playbackLane.length} tracks`} note="Start with the single and keep moving through related cuts." />
             <DetailMetric label="Source" value={featuredPlaylist.title} note="This track is still surfacing strongly inside playlist-driven discovery." />
             <DetailMetric label="Comments" value={String(track.commentCount ?? detail.comments.length)} note="Conversation is active enough to deserve its own context panel." />
@@ -2432,6 +2465,7 @@ export function ArtistProfilePage() {
   const setQueue = usePlayerStore((state) => state.setQueue);
   const isFollowingArtist = useEngagementStore((state) => state.isFollowingArtist);
   const toggleArtistFollow = useEngagementStore((state) => state.toggleArtistFollow);
+  const heroProgress = useWindowScrollProgress();
   const detail = buildArtistDetail(useArtistDetailQuery(id ?? '').data);
   const artist = detail.artist;
   const featuredTracks = detail.tracks.length ? detail.tracks : fallbackTracks.filter((item) => item.artist === artist.name).slice(0, 2);
@@ -2439,16 +2473,19 @@ export function ArtistProfilePage() {
   const featuredEvents = detail.shows.length ? detail.shows : fallbackEvents.filter((item) => item.venue === artist.town);
   const featuredMerch = detail.merch.length ? detail.merch : merchForArtistFallback(artist.name);
   const signatureTrack = featuredTracks[0] ?? fallbackTracks[0];
-  const following = isFollowingArtist(artist.name);
+  const following = isFollowingArtist(artist.name, artist.id);
 
   return (
     <section className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,17,17,0.96),rgba(12,12,12,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+      <section
+        className="route-hero overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,17,17,0.96),rgba(12,12,12,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]"
+        style={{ ['--hero-progress' as string]: heroProgress } as CSSProperties}
+      >
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[220px_minmax(0,1fr)_280px] md:px-8 md:py-8">
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#181818]">
+          <div className="route-hero-media overflow-hidden rounded-[28px] border border-white/10 bg-[#181818]">
             {artist.imageSrc ? <img src={artist.imageSrc} alt="" className="aspect-square h-full w-full object-cover" /> : <div className={`aspect-square artwork-${artist.accent}`} />}
           </div>
-          <div className="space-y-4">
+          <div className="route-hero-copy space-y-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Artist profile</p>
               <h1 className="mt-2 text-4xl font-bold tracking-tight text-white md:text-6xl">{artist.name}</h1>
@@ -2474,7 +2511,7 @@ export function ArtistProfilePage() {
               </button>
               <button
                 type="button"
-                onClick={() => toggleArtistFollow(artist.name)}
+                onClick={() => void toggleArtistFollow(artist.name, artist.id)}
                 className="button-secondary"
               >
                 {following ? 'Following' : 'Follow artist'}
@@ -2487,7 +2524,7 @@ export function ArtistProfilePage() {
               </Link>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="route-hero-metrics grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
             <DetailMetric label="Top track" value={signatureTrack.title} note="The route opens with the artist's strongest current entry point." />
             <DetailMetric label="Release focus" value={(featuredReleases[0] ?? fallbackReleaseMoments[0]).title} note="New campaign context stays close to the hero instead of falling below the fold." />
             <DetailMetric label="Next live moment" value={featuredEvents[0]?.date ?? 'Fri 8PM'} note="Shows stay visible as part of the same artist world." />
@@ -2558,6 +2595,7 @@ export function PlaylistDetailPage() {
   const { id } = useParams();
   const { user } = useAuthStore();
   const setQueue = usePlayerStore((state) => state.setQueue);
+  const heroProgress = useWindowScrollProgress();
   const detail = buildPlaylistDetail(usePlaylistDetailQuery(id ?? '').data);
   const libraryQuery = useUserLibraryQuery(Boolean(user));
   const playlist = detail.playlist;
@@ -2568,12 +2606,15 @@ export function PlaylistDetailPage() {
 
   return (
     <section className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,15,0.96),rgba(10,10,10,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+      <section
+        className="route-hero overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,15,0.96),rgba(10,10,10,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]"
+        style={{ ['--hero-progress' as string]: heroProgress } as CSSProperties}
+      >
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[200px_minmax(0,1fr)_280px] md:px-8 md:py-8">
-          <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#181818]">
+          <div className="route-hero-media overflow-hidden rounded-[26px] border border-white/10 bg-[#181818]">
             {playlist.imageSrc ? <img src={playlist.imageSrc} alt="" className="aspect-square h-full w-full object-cover" /> : <div className={`aspect-square artwork-${playlist.accent}`} />}
           </div>
-          <div className="space-y-4">
+          <div className="route-hero-copy space-y-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Playlist</p>
               <h1 className="mt-2 text-4xl font-bold tracking-tight text-white md:text-6xl">{playlist.title}</h1>
@@ -2603,7 +2644,7 @@ export function PlaylistDetailPage() {
               {user && playlist.id ? <PlaylistSaveControl playlistId={playlist.id} saved={Boolean(savedPlaylist)} /> : null}
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="route-hero-metrics grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
             <DetailMetric label="Opening cue" value={playlistTracks[0]?.title ?? 'Brisa en Loiza'} note="The mix opens with a clear first-track invitation." />
             <DetailMetric label="Mood anchor" value={playlistTags[0]} note="Tags now support the hero rather than living only in a lower card." />
             <DetailMetric label="Save state" value={savedPlaylist ? 'Saved' : 'Not saved'} note="Your library connection is visible at the top of the route." />
@@ -2693,7 +2734,7 @@ export const AdminDashboardPage = () => (
         <div className="space-y-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Admin</p>
-            <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight text-white md:text-4xl">Moderation and ops now live in a proper control room.</h1>
+            <h1 className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight text-white md:text-3xl">Moderation and ops now live in a proper control room.</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-300 md:text-base">
               The admin side is now laid out like the rest of the branch-style shell: faster scanning, clearer priority, and less placeholder energy.
             </p>
@@ -2764,7 +2805,7 @@ export const ModerationPage = () => (
         <div className="space-y-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Moderation</p>
-            <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight text-white md:text-4xl">A queue designed for decisions, not confusion.</h1>
+            <h1 className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight text-white md:text-3xl">A queue designed for decisions, not confusion.</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-300 md:text-base">
               Moderation work needs signal, context, and actionability. This route now matches the darker shell while making the queue read like a real triage lane.
             </p>

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { deriveTrackTag, formatDurationLabel, formatPlayLabel, slugify } from '../utils/catalog.js';
@@ -152,4 +153,201 @@ export async function getMyLibrary(req: AuthRequest, res: Response) {
       savedPlaylists: savedPlaylistRows.length
     }
   });
+}
+
+export async function getMyEngagement(req: AuthRequest, res: Response) {
+  const userId = req.auth!.userId;
+
+  const [followRows, reminderRows, savedMerchRows] = await Promise.all([
+    prisma.follow.findMany({
+      where: { fanUserId: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        artist: {
+          select: { id: true, artistName: true }
+        }
+      }
+    }),
+    prisma.eventReminder.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        event: {
+          select: { id: true, title: true }
+        }
+      }
+    }),
+    prisma.savedMerchItem.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        merchItem: {
+          select: { id: true, title: true }
+        }
+      }
+    })
+  ]);
+
+  res.json({
+    followedArtists: followRows.map((row) => ({
+      id: row.artist.id,
+      slug: slugify(row.artist.artistName),
+      name: row.artist.artistName,
+      followedAt: row.createdAt.toISOString()
+    })),
+    remindedEvents: reminderRows.map((row) => ({
+      id: row.event.id,
+      title: row.event.title,
+      remindedAt: row.createdAt.toISOString()
+    })),
+    savedMerchItems: savedMerchRows.map((row) => ({
+      id: row.merchItem.id,
+      title: row.merchItem.title,
+      savedAt: row.createdAt.toISOString()
+    })),
+    counts: {
+      followedArtists: followRows.length,
+      remindedEvents: reminderRows.length,
+      savedMerchItems: savedMerchRows.length
+    }
+  });
+}
+
+export async function followArtistHandler(req: AuthRequest, res: Response) {
+  const artistProfileId = z.string().parse(req.params.artistId);
+  const userId = req.auth!.userId;
+
+  const artist = await prisma.artistProfile.findUnique({
+    where: { id: artistProfileId },
+    select: { id: true }
+  });
+
+  if (!artist) {
+    return res.status(404).json({ message: 'Artist not found.' });
+  }
+
+  const existing = await prisma.follow.findUnique({
+    where: {
+      fanUserId_artistProfileId: { fanUserId: userId, artistProfileId }
+    }
+  });
+
+  if (!existing) {
+    await prisma.$transaction([
+      prisma.follow.create({
+        data: { fanUserId: userId, artistProfileId }
+      }),
+      prisma.artistProfile.update({
+        where: { id: artistProfileId },
+        data: { followerCount: { increment: 1 } }
+      })
+    ]);
+  }
+
+  return res.json({ ok: true, following: true });
+}
+
+export async function unfollowArtistHandler(req: AuthRequest, res: Response) {
+  const artistProfileId = z.string().parse(req.params.artistId);
+  const userId = req.auth!.userId;
+
+  const existing = await prisma.follow.findUnique({
+    where: {
+      fanUserId_artistProfileId: { fanUserId: userId, artistProfileId }
+    }
+  });
+
+  if (existing) {
+    await prisma.$transaction([
+      prisma.follow.delete({ where: { id: existing.id } }),
+      prisma.artistProfile.update({
+        where: { id: artistProfileId },
+        data: { followerCount: { decrement: 1 } }
+      })
+    ]);
+  }
+
+  return res.json({ ok: true, following: false });
+}
+
+export async function remindEventHandler(req: AuthRequest, res: Response) {
+  const eventId = z.string().parse(req.params.eventId);
+  const userId = req.auth!.userId;
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true }
+  });
+
+  if (!event) {
+    return res.status(404).json({ message: 'Event not found.' });
+  }
+
+  await prisma.eventReminder.upsert({
+    where: {
+      userId_eventId: { userId, eventId }
+    },
+    update: {},
+    create: { userId, eventId }
+  });
+
+  return res.json({ ok: true, reminded: true });
+}
+
+export async function unremindEventHandler(req: AuthRequest, res: Response) {
+  const eventId = z.string().parse(req.params.eventId);
+  const userId = req.auth!.userId;
+
+  const existing = await prisma.eventReminder.findUnique({
+    where: {
+      userId_eventId: { userId, eventId }
+    }
+  });
+
+  if (existing) {
+    await prisma.eventReminder.delete({ where: { id: existing.id } });
+  }
+
+  return res.json({ ok: true, reminded: false });
+}
+
+export async function saveMerchHandler(req: AuthRequest, res: Response) {
+  const merchItemId = z.string().parse(req.params.merchId);
+  const userId = req.auth!.userId;
+
+  const merchItem = await prisma.merchItem.findUnique({
+    where: { id: merchItemId },
+    select: { id: true }
+  });
+
+  if (!merchItem) {
+    return res.status(404).json({ message: 'Merch item not found.' });
+  }
+
+  await prisma.savedMerchItem.upsert({
+    where: {
+      userId_merchItemId: { userId, merchItemId }
+    },
+    update: {},
+    create: { userId, merchItemId }
+  });
+
+  return res.json({ ok: true, saved: true });
+}
+
+export async function unsaveMerchHandler(req: AuthRequest, res: Response) {
+  const merchItemId = z.string().parse(req.params.merchId);
+  const userId = req.auth!.userId;
+
+  const existing = await prisma.savedMerchItem.findUnique({
+    where: {
+      userId_merchItemId: { userId, merchItemId }
+    }
+  });
+
+  if (existing) {
+    await prisma.savedMerchItem.delete({ where: { id: existing.id } });
+  }
+
+  return res.json({ ok: true, saved: false });
 }

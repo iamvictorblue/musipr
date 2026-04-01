@@ -35,6 +35,9 @@ type PlayerState = {
   toggleMute: () => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+  playAtIndex: (index: number) => void;
+  removeFromQueue: (index: number) => void;
+  clearQueue: () => void;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -220,5 +223,62 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   cycleRepeat: () =>
     set((state) => ({
       repeatMode: state.repeatMode === 'off' ? 'all' : state.repeatMode === 'all' ? 'one' : 'off'
+    })),
+  playAtIndex: (index) =>
+    set((state) => {
+      if (!state.queue.length) return state;
+
+      const nextIndex = clamp(index, 0, state.queue.length - 1);
+      return {
+        currentIndex: nextIndex,
+        currentTrack: state.queue[nextIndex],
+        isPlaying: true,
+        progressSec: 0
+      };
+    }),
+  removeFromQueue: (index) =>
+    set((state) => {
+      if (index < 0 || index >= state.queue.length) {
+        return state;
+      }
+
+      const nextQueue = state.queue.filter((_, queueIndex) => queueIndex !== index);
+
+      if (!nextQueue.length) {
+        return {
+          queue: [],
+          currentTrack: undefined,
+          currentIndex: 0,
+          isPlaying: false,
+          progressSec: 0
+        };
+      }
+
+      if (index === state.currentIndex) {
+        const nextIndex = Math.min(index, nextQueue.length - 1);
+        return {
+          queue: nextQueue,
+          currentIndex: nextIndex,
+          currentTrack: nextQueue[nextIndex],
+          isPlaying: true,
+          progressSec: 0
+        };
+      }
+
+      const nextIndex = index < state.currentIndex ? state.currentIndex - 1 : state.currentIndex;
+
+      return {
+        queue: nextQueue,
+        currentIndex: nextIndex,
+        currentTrack: nextQueue[nextIndex]
+      };
+    }),
+  clearQueue: () =>
+    set(() => ({
+      currentTrack: undefined,
+      queue: [],
+      currentIndex: 0,
+      isPlaying: false,
+      progressSec: 0
     }))
 }));
