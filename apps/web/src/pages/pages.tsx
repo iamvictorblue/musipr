@@ -52,6 +52,7 @@ import {
   type UiTrack
 } from '../data/catalog';
 import { useAuthStore } from '../store/auth';
+import { useEngagementStore } from '../store/engagement';
 import { usePlayerStore } from '../store/player';
 import { slugify } from '../utils/slug';
 
@@ -279,7 +280,15 @@ function LibraryTrackRow({
       <div className="library-track-main">
         <Link
           to={`/tracks/${slugify(track.title)}`}
-          onClick={() => setTrack({ id: track.id ?? slugify(`${track.artist}-${track.title}`), title: track.title, artist: track.artist })}
+          onClick={() =>
+            setTrack({
+              id: track.id ?? slugify(`${track.artist}-${track.title}`),
+              title: track.title,
+              artist: track.artist,
+              artworkUrl: track.imageSrc,
+              sourceLabel: track.tag
+            })
+          }
           className="library-track-cover"
         >
           {track.imageSrc ? <img src={track.imageSrc} alt="" className="artwork-photo" /> : <div className={`h-full w-full artwork-${track.accent}`} aria-hidden="true" />}
@@ -290,7 +299,15 @@ function LibraryTrackRow({
           <div className="flex flex-wrap items-center gap-2">
             <Link
               to={`/tracks/${slugify(track.title)}`}
-              onClick={() => setTrack({ id: track.id ?? slugify(`${track.artist}-${track.title}`), title: track.title, artist: track.artist })}
+              onClick={() =>
+                setTrack({
+                  id: track.id ?? slugify(`${track.artist}-${track.title}`),
+                  title: track.title,
+                  artist: track.artist,
+                  artworkUrl: track.imageSrc,
+                  sourceLabel: track.tag
+                })
+              }
               className="library-track-link"
             >
               {track.title}
@@ -338,7 +355,15 @@ function MiniTrackRow({
   return (
     <Link
       to={`/tracks/${slugify(title)}`}
-      onClick={() => setTrack({ id: slugify(`${artist}-${title}`), title, artist })}
+      onClick={() =>
+        setTrack({
+          id: slugify(`${artist}-${title}`),
+          title,
+          artist,
+          artworkUrl: imageSrc,
+          sourceLabel: 'Queue pick'
+        })
+      }
       className="list-card block transition duration-300 hover:-translate-y-1"
     >
       <div className="list-row">
@@ -358,6 +383,102 @@ function MiniTrackRow({
         <span className="button-ghost hidden md:inline-flex">Queue</span>
       </div>
     </Link>
+  );
+}
+
+function buildPlayerTrackFromUiTrack(track: UiTrack) {
+  return {
+    id: track.id ?? slugify(`${track.artist}-${track.title}`),
+    title: track.title,
+    artist: track.artist,
+    artworkUrl: track.imageSrc,
+    sourceLabel: track.tag
+  };
+}
+
+function PlayableTrackTable({
+  eyebrow,
+  title,
+  note,
+  tracks
+}: {
+  eyebrow: string;
+  title: string;
+  note: string;
+  tracks: UiTrack[];
+}) {
+  const { currentTrack, currentIndex, queue, setQueue } = usePlayerStore((state) => ({
+    currentTrack: state.currentTrack,
+    currentIndex: state.currentIndex,
+    queue: state.queue,
+    setQueue: state.setQueue
+  }));
+
+  const playerQueue = tracks.map((track) => buildPlayerTrackFromUiTrack(track));
+
+  return (
+    <article className="card p-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">{eyebrow}</p>
+          <h2 className="mt-3 text-2xl font-semibold text-white">{title}</h2>
+          <p className="mt-2 text-sm text-zinc-400">{note}</p>
+        </div>
+        <span className="button-ghost">{tracks.length} queued</span>
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03]">
+        <div className="grid grid-cols-[40px_minmax(0,1fr)_auto_auto] gap-3 border-b border-white/10 px-4 py-3 text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+          <span>#</span>
+          <span>Title</span>
+          <span className="hidden md:block">Plays</span>
+          <span>Time</span>
+        </div>
+        <div className="divide-y divide-white/10">
+          {tracks.map((track, index) => {
+            const playerTrack = playerQueue[index];
+            const isCurrent = currentTrack?.id === playerTrack.id;
+            const isQueued = queue.some((item) => item.id === playerTrack.id);
+
+            return (
+              <Link
+                key={playerTrack.id}
+                to={`/tracks/${slugify(track.title)}`}
+                onClick={() => setQueue(playerQueue, index, true)}
+                className={`grid grid-cols-[40px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition ${
+                  isCurrent ? 'bg-cyan-400/[0.08]' : 'hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex items-center justify-center text-sm font-semibold text-zinc-400">
+                  {isCurrent ? (
+                    <span className="text-cyan-200">{String(currentIndex + 1).padStart(2, '0')}</span>
+                  ) : (
+                    String(index + 1).padStart(2, '0')
+                  )}
+                </div>
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className={clsx('h-12 w-12 shrink-0 rounded-[14px]', !track.imageSrc && `artwork-${track.accent}`, track.imageSrc && 'mini-cover-photo')}
+                    style={track.imageSrc ? { backgroundImage: `url(${track.imageSrc})` } : undefined}
+                  />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className={`truncate text-sm font-semibold ${isCurrent ? 'text-cyan-100' : 'text-white'}`}>{track.title}</p>
+                      <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                        {isQueued ? 'In queue' : track.tag}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-zinc-400">{track.artist}</p>
+                  </div>
+                </div>
+                <span className="hidden text-sm text-zinc-400 md:block">{track.plays}</span>
+                <span className="text-sm text-zinc-400">{track.duration}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -2187,6 +2308,7 @@ export const UploadTrackPage = () => (
 export function TrackDetailPage() {
   const { id } = useParams();
   const { user } = useAuthStore();
+  const setQueue = usePlayerStore((state) => state.setQueue);
   const detail = buildTrackDetail(useTrackDetailQuery(id ?? '').data);
   const libraryQuery = useUserLibraryQuery(Boolean(user));
   const track = detail.track;
@@ -2194,11 +2316,12 @@ export function TrackDetailPage() {
   const relatedTracks = detail.relatedTracks.length ? detail.relatedTracks : fallbackTracks.filter((item) => item.title !== track.title).slice(0, 3);
   const featuredPlaylist = detail.featuringPlaylists[0] ?? fallbackPlaylists[0];
   const libraryTrack = libraryQuery.data?.likedTracks.find((item) => item.id === track.id);
+  const playbackLane = [track, ...relatedTracks];
 
   return (
     <section className="space-y-6">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(16,25,42,0.96),rgba(15,15,15,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
-        <div className="grid gap-6 px-6 py-7 md:grid-cols-[180px_minmax(0,1fr)] md:px-8 md:py-8">
+        <div className="grid gap-6 px-6 py-7 lg:grid-cols-[180px_minmax(0,1fr)_280px] md:px-8 md:py-8">
           <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#181818]">
             {track.imageSrc ? <img src={track.imageSrc} alt="" className="aspect-square h-full w-full object-cover" /> : <div className={`aspect-square artwork-${track.accent}`} />}
           </div>
@@ -2219,16 +2342,28 @@ export function TrackDetailPage() {
               ))}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link to={`/discover?q=${encodeURIComponent(track.artist)}`} className="button-primary">
-                More from this artist
-              </Link>
+              <button
+                type="button"
+                onClick={() => setQueue(playbackLane.map((item) => buildPlayerTrackFromUiTrack(item)), 0, true)}
+                className="button-primary"
+              >
+                Play now
+              </button>
               <Link to={`/playlists/${slugify(featuredPlaylist.title)}`} className="button-secondary">
                 Open playlist lane
+              </Link>
+              <Link to={`/discover?q=${encodeURIComponent(track.artist)}`} className="button-secondary">
+                More from this artist
               </Link>
               {user && track.id ? (
                 <TrackLibraryControls trackId={track.id} liked={Boolean(libraryTrack?.likedAt)} saved={Boolean(libraryTrack?.savedAt)} />
               ) : null}
             </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <DetailMetric label="Queue lane" value={`${playbackLane.length} tracks`} note="Start with the single and keep moving through related cuts." />
+            <DetailMetric label="Source" value={featuredPlaylist.title} note="This track is still surfacing strongly inside playlist-driven discovery." />
+            <DetailMetric label="Comments" value={String(track.commentCount ?? detail.comments.length)} note="Conversation is active enough to deserve its own context panel." />
           </div>
         </div>
       </section>
@@ -2241,13 +2376,20 @@ export function TrackDetailPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <PlayableTrackTable
+          eyebrow="Playback lane"
+          title="Start here, then keep the room moving."
+          note="The track route now shares the same dense queue pattern as the shell and player."
+          tracks={playbackLane}
+        />
+
         <article className="card p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">About the record</p>
           <p className="mt-4 text-lg font-semibold text-white">
             {track.tag} energy anchored by {track.artist}.
           </p>
           <p className="mt-3 text-sm leading-7 text-zinc-400">
-            This route now reads more like the darker branch aesthetic: denser, faster to scan, and focused on what to play next.
+            This is the supporting rail for the track route now: story, credits, and discovery context instead of a generic second card.
           </p>
           <div className="mt-5 space-y-3">
             {[
@@ -2259,20 +2401,6 @@ export function TrackDetailPage() {
               <div key={item} className="feed-row">
                 {item}
               </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="card p-6">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Queue next</p>
-            <Link to={`/playlists/${slugify(featuredPlaylist.title)}`} className="text-sm font-medium text-zinc-400 hover:text-white">
-              View playlist
-            </Link>
-          </div>
-          <div className="mt-4 space-y-4">
-            {relatedTracks.map((item, index) => (
-              <MiniTrackRow key={item.title} index={index} title={item.title} artist={item.artist} plays={item.plays} accent={item.accent} imageSrc={item.imageSrc} />
             ))}
           </div>
         </article>
@@ -2301,6 +2429,9 @@ export function TrackDetailPage() {
 
 export function ArtistProfilePage() {
   const { id } = useParams();
+  const setQueue = usePlayerStore((state) => state.setQueue);
+  const isFollowingArtist = useEngagementStore((state) => state.isFollowingArtist);
+  const toggleArtistFollow = useEngagementStore((state) => state.toggleArtistFollow);
   const detail = buildArtistDetail(useArtistDetailQuery(id ?? '').data);
   const artist = detail.artist;
   const featuredTracks = detail.tracks.length ? detail.tracks : fallbackTracks.filter((item) => item.artist === artist.name).slice(0, 2);
@@ -2308,11 +2439,12 @@ export function ArtistProfilePage() {
   const featuredEvents = detail.shows.length ? detail.shows : fallbackEvents.filter((item) => item.venue === artist.town);
   const featuredMerch = detail.merch.length ? detail.merch : merchForArtistFallback(artist.name);
   const signatureTrack = featuredTracks[0] ?? fallbackTracks[0];
+  const following = isFollowingArtist(artist.name);
 
   return (
     <section className="space-y-6">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,17,17,0.96),rgba(12,12,12,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
-        <div className="grid gap-6 px-6 py-7 md:grid-cols-[220px_minmax(0,1fr)] md:px-8 md:py-8">
+        <div className="grid gap-6 px-6 py-7 lg:grid-cols-[220px_minmax(0,1fr)_280px] md:px-8 md:py-8">
           <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#181818]">
             {artist.imageSrc ? <img src={artist.imageSrc} alt="" className="aspect-square h-full w-full object-cover" /> : <div className={`aspect-square artwork-${artist.accent}`} />}
           </div>
@@ -2333,13 +2465,32 @@ export function ArtistProfilePage() {
               ))}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link to={`/discover?q=${encodeURIComponent(artist.name)}`} className="button-primary">
-                Browse artist lane
-              </Link>
+              <button
+                type="button"
+                onClick={() => setQueue(featuredTracks.map((item) => buildPlayerTrackFromUiTrack(item)), 0, true)}
+                className="button-primary"
+              >
+                Play top tracks
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleArtistFollow(artist.name)}
+                className="button-secondary"
+              >
+                {following ? 'Following' : 'Follow artist'}
+              </button>
               <Link to="/shows" className="button-secondary">
                 Upcoming shows
               </Link>
+              <Link to={`/discover?q=${encodeURIComponent(artist.name)}`} className="button-secondary">
+                Browse artist lane
+              </Link>
             </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <DetailMetric label="Top track" value={signatureTrack.title} note="The route opens with the artist's strongest current entry point." />
+            <DetailMetric label="Release focus" value={(featuredReleases[0] ?? fallbackReleaseMoments[0]).title} note="New campaign context stays close to the hero instead of falling below the fold." />
+            <DetailMetric label="Next live moment" value={featuredEvents[0]?.date ?? 'Fri 8PM'} note="Shows stay visible as part of the same artist world." />
           </div>
         </div>
       </section>
@@ -2352,6 +2503,13 @@ export function ArtistProfilePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <PlayableTrackTable
+          eyebrow="Top tracks"
+          title="The fastest way into this artist world."
+          note="This table now matches the same queue-first interaction pattern as the shell."
+          tracks={featuredTracks}
+        />
+
         <article className="card p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">About this artist</p>
           <p className="mt-4 text-lg font-semibold text-white">{artist.name} is moving with clear momentum.</p>
@@ -2377,18 +2535,6 @@ export function ArtistProfilePage() {
         </article>
       </div>
 
-      <section className="space-y-4">
-        <div className="flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">Top tracks</h2>
-            <p className="mt-1 text-sm text-zinc-400">The quickest way into the artist world.</p>
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {featuredTracks.map((item) => <TrackCard key={item.title} {...item} />)}
-        </div>
-      </section>
-
       <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         <article className="card p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Release moments</p>
@@ -2411,6 +2557,7 @@ export function ArtistProfilePage() {
 export function PlaylistDetailPage() {
   const { id } = useParams();
   const { user } = useAuthStore();
+  const setQueue = usePlayerStore((state) => state.setQueue);
   const detail = buildPlaylistDetail(usePlaylistDetailQuery(id ?? '').data);
   const libraryQuery = useUserLibraryQuery(Boolean(user));
   const playlist = detail.playlist;
@@ -2422,7 +2569,7 @@ export function PlaylistDetailPage() {
   return (
     <section className="space-y-6">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,15,0.96),rgba(10,10,10,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
-        <div className="grid gap-6 px-6 py-7 md:grid-cols-[200px_minmax(0,1fr)] md:px-8 md:py-8">
+        <div className="grid gap-6 px-6 py-7 lg:grid-cols-[200px_minmax(0,1fr)_280px] md:px-8 md:py-8">
           <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#181818]">
             {playlist.imageSrc ? <img src={playlist.imageSrc} alt="" className="aspect-square h-full w-full object-cover" /> : <div className={`aspect-square artwork-${playlist.accent}`} />}
           </div>
@@ -2431,7 +2578,7 @@ export function PlaylistDetailPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Playlist</p>
               <h1 className="mt-2 text-4xl font-bold tracking-tight text-white md:text-6xl">{playlist.title}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-300 md:text-base">
-                {playlist.description} This route now feels closer to your buddy’s branch: darker, simpler, and built around the queue itself.
+                {playlist.description} This route now shares the same action-row and playable table system as the rest of the app.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2440,14 +2587,26 @@ export function PlaylistDetailPage() {
               ))}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link to="/discover" className="button-primary">
-                Keep browsing
-              </Link>
+              <button
+                type="button"
+                onClick={() => setQueue(playlistTracks.map((item) => buildPlayerTrackFromUiTrack(item)), 0, true)}
+                className="button-primary"
+              >
+                Play playlist
+              </button>
               <Link to={`/discover?q=${encodeURIComponent(playlist.title)}`} className="button-secondary">
                 Similar moods
               </Link>
+              <Link to="/discover" className="button-secondary">
+                Keep browsing
+              </Link>
               {user && playlist.id ? <PlaylistSaveControl playlistId={playlist.id} saved={Boolean(savedPlaylist)} /> : null}
             </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <DetailMetric label="Opening cue" value={playlistTracks[0]?.title ?? 'Brisa en Loiza'} note="The mix opens with a clear first-track invitation." />
+            <DetailMetric label="Mood anchor" value={playlistTags[0]} note="Tags now support the hero rather than living only in a lower card." />
+            <DetailMetric label="Save state" value={savedPlaylist ? 'Saved' : 'Not saved'} note="Your library connection is visible at the top of the route." />
           </div>
         </div>
       </section>
@@ -2460,14 +2619,12 @@ export function PlaylistDetailPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <article className="card p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Track order</p>
-          <div className="mt-4 space-y-4">
-            {playlistTracks.map((track, index) => (
-              <MiniTrackRow key={track.title} index={index} title={track.title} artist={track.artist} plays={track.plays} accent={track.accent} imageSrc={track.imageSrc} />
-            ))}
-          </div>
-        </article>
+        <PlayableTrackTable
+          eyebrow="Track order"
+          title="A sequenced lane built to run front to back."
+          note="Dense, queueable rows now match the same playback behavior used on the shell and artist routes."
+          tracks={playlistTracks}
+        />
 
         <div className="grid gap-4">
           <article className="card p-6">
@@ -2536,7 +2693,7 @@ export const AdminDashboardPage = () => (
         <div className="space-y-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Admin</p>
-            <h1 className="mt-2 max-w-3xl text-4xl font-bold tracking-tight text-white md:text-6xl">Moderation and ops now live in a proper control room.</h1>
+            <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight text-white md:text-4xl">Moderation and ops now live in a proper control room.</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-300 md:text-base">
               The admin side is now laid out like the rest of the branch-style shell: faster scanning, clearer priority, and less placeholder energy.
             </p>
@@ -2607,7 +2764,7 @@ export const ModerationPage = () => (
         <div className="space-y-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/60">Moderation</p>
-            <h1 className="mt-2 max-w-3xl text-4xl font-bold tracking-tight text-white md:text-6xl">A queue designed for decisions, not confusion.</h1>
+            <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight text-white md:text-4xl">A queue designed for decisions, not confusion.</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-300 md:text-base">
               Moderation work needs signal, context, and actionability. This route now matches the darker shell while making the queue read like a real triage lane.
             </p>
