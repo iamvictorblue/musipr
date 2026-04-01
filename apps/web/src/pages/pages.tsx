@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { ArtistCard, EventCard, MerchCard, PlaylistCard, TrackCard } from '../components/cards/Cards';
 export { ArtistPage as ArtistProfilePage } from './artist/ArtistPage';
 export { ProfilePage } from './profile/ProfilePage';
@@ -10,9 +11,35 @@ const seedArtists = [
 
 export const LandingPage = () => (
   <section className="space-y-10">
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-zinc-400">Hecho para ti</p>
-      <h1 className="text-4xl font-bold tracking-tight text-white md:text-5xl">Buenas noches</h1>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-zinc-400">Hecho para ti</p>
+        <h1 className="text-4xl font-bold tracking-tight text-white md:text-5xl">Buenas noches</h1>
+      </div>
+
+      <Link
+        to="/favorites"
+        className="inline-flex items-center gap-3 self-start rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15 hover:text-white"
+      >
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-300/15 text-cyan-200">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 20.5c-4.7-3.1-7.8-6-7.8-10.1A4.3 4.3 0 0 1 8.5 6c1.5 0 2.8.7 3.5 1.9A4.14 4.14 0 0 1 15.5 6a4.3 4.3 0 0 1 4.3 4.4c0 4.1-3.1 7-7.8 10.1Z" />
+          </svg>
+        </span>
+        <span>
+          <span className="block text-xs uppercase tracking-[0.22em] text-cyan-100/65">Shortcut</span>
+          <span className="block text-base font-semibold text-white">Tus likes</span>
+        </span>
+      </Link>
     </div>
 
     <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
