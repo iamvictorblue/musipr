@@ -1,7 +1,7 @@
 import { jsx as _jsx } from "react/jsx-runtime";
 import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
-import { AdminDashboardPage, ArtistDashboardPage, ArtistOnboardingPage, ArtistProfilePage, AuthPage, DiscoverPage, LandingPage, MerchPage, ModerationPage, PlaylistDetailPage, PlaylistsPage, ProfilePage, ReleasesPage, SettingsPage, ShowsPage, TrackDetailPage, UploadTrackPage, VerificationPage } from '../pages/pages';
+import { AdminDashboardPage, ArtistDashboardPage, ArtistOnboardingPage, ArtistProfilePage, AuthPage, DiscoverPage, FavoritesPage, LandingPage, LikedSongsPage, MerchPage, ModerationPage, PlaylistDetailPage, PlaylistsPage, ProfilePage, ReleasesPage, SettingsPage, ShowsPage, TrackDetailPage, UploadTrackPage, VerificationPage } from '../pages/pages';
 export const router = createBrowserRouter([
     {
         path: '/',
@@ -9,6 +9,8 @@ export const router = createBrowserRouter([
         children: [
             { index: true, element: _jsx(LandingPage, {}) },
             { path: 'discover', element: _jsx(DiscoverPage, {}) },
+            { path: 'liked-songs', element: _jsx(LikedSongsPage, {}) },
+            { path: 'favorites', element: _jsx(FavoritesPage, {}) },
             { path: 'login', element: _jsx(AuthPage, {}) },
             { path: 'artist/onboarding', element: _jsx(ArtistOnboardingPage, {}) },
             { path: 'artist/verification', element: _jsx(VerificationPage, {}) },

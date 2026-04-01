@@ -9,6 +9,7 @@ import {
   DiscoverPage,
   FavoritesPage,
   LandingPage,
+  LikedSongsPage,
   MerchPage,
   ModerationPage,
   PlaylistDetailPage,
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'discover', element: <DiscoverPage /> },
+      { path: 'liked-songs', element: <LikedSongsPage /> },
       { path: 'favorites', element: <FavoritesPage /> },
       { path: 'login', element: <AuthPage /> },
       { path: 'artist/onboarding', element: <ArtistOnboardingPage /> },

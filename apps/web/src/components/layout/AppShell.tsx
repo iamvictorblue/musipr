@@ -8,7 +8,6 @@ const topLinks = [
 ];
 
 const libraryItems = [
-  'Tus likes',
   'Radar boricua',
   'Sets de estudio',
   'Noches en Santurce',
@@ -36,8 +35,8 @@ function HeartIcon({ filled = false }: { filled?: boolean }) {
 function FavoritesNavLink() {
   return (
     <NavLink
-      to="/favorites"
-      aria-label="Open favorites"
+      to="/liked-songs"
+      aria-label="Open liked songs"
       className={({ isActive }) =>
         `inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
           isActive
@@ -114,6 +113,12 @@ export function AppShell() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Link
+                to="/"
+                className="hidden text-lg font-semibold tracking-tight text-white transition hover:text-zinc-200 lg:inline-flex"
+              >
+                MusiPR
+              </Link>
+              <Link
                 to="/profile"
                 aria-label="Open profile"
                 className="inline-flex shrink-0 items-center gap-3 rounded-full border border-white/10 bg-black/30 p-1.5 pr-4 text-sm font-medium text-white transition hover:bg-black/45"
@@ -127,7 +132,13 @@ export function AppShell() {
           </div>
 
           <div className="mt-3 flex flex-col gap-3 md:hidden">
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+              <Link
+                to="/"
+                className="text-base font-semibold tracking-tight text-white transition hover:text-zinc-200"
+              >
+                MusiPR
+              </Link>
               <Link
                 to="/"
                 aria-label="Home"
@@ -175,8 +186,7 @@ export function AppShell() {
             <section className="flex min-h-0 flex-1 flex-col rounded-[26px] border border-white/10 bg-[#121212] p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xl font-semibold tracking-tight text-white">MusiPR</div>
-                  <h2 className="mt-4 text-sm font-semibold text-white">Tu libreria</h2>
+                  <h2 className="text-sm font-semibold text-white">Your stations</h2>
                 </div>
                 <div className="flex gap-2 text-zinc-400">
                   <span className="rounded-full bg-white/5 px-2 py-1 text-xs">+</span>
@@ -185,7 +195,7 @@ export function AppShell() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {['Playlists', 'Artistas', 'Albums'].map((item) => (
+                {['Albums'].map((item) => (
                   <span key={item} className="rounded-full bg-white/5 px-3 py-2 text-xs text-zinc-300">
                     {item}
                   </span>
